@@ -1,16 +1,36 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Ratchet Chat</title>
+    <title>Ratchet Chat - Login</title>
     <style>
-        body { font-family: Arial, sans-serif; margin: 0; padding: 0; background-color: #f4f4f4; }
-        #chat-container { max-width: 600px; margin: 30px auto; background-color: #fff; border-radius: 8px; box-shadow: 0 0 10px rgba(0,0,0,0.1); overflow: hidden; }
+        body { font-family: Arial, sans-serif; margin: 0; padding: 0; background-color: #f4f4f4; display: flex; justify-content: center; align-items: center; min-height: 100vh; }
+        .container { max-width: 600px; margin: 30px auto; background-color: #fff; border-radius: 8px; box-shadow: 0 0 10px rgba(0,0,0,0.1); overflow: hidden; }
+
+        /* Auth Forms */
+        #auth-container { padding: 30px; }
+        #auth-container h2 { text-align: center; margin-bottom: 20px; color: #333; }
+        .auth-form { display: none; /* Initially hidden, JS will show one */ }
+        .auth-form input[type="text"], .auth-form input[type="password"] { width: calc(100% - 22px); padding: 10px; margin-bottom: 15px; border: 1px solid #ddd; border-radius: 4px; }
+        .auth-form button { width: 100%; padding: 10px; background-color: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 16px; }
+        .auth-form button:hover { background-color: #0056b3; }
+        .toggle-form { text-align: center; margin-top: 15px; }
+        .toggle-form button { background: none; border: none; color: #007bff; cursor: pointer; text-decoration: underline; }
+        #auth-message { text-align: center; margin-bottom: 15px; color: red; }
+
+        /* Chat Area */
+        #chat-wrapper { display: none; /* Initially hidden */ }
+        #chat-header { background-color: #007bff; color: white; padding: 15px; display: flex; justify-content: space-between; align-items: center; }
+        #chat-header #username-display { font-weight: bold; }
+        #chat-header #logout-button { background-color: #dc3545; color: white; border: none; padding: 8px 12px; border-radius: 4px; cursor: pointer; }
+        #chat-header #logout-button:hover { background-color: #c82333; }
+
+        #chat-container { /* Styles from original, slightly adjusted */ }
         #chat-output { height: 400px; overflow-y: auto; padding: 20px; border-bottom: 1px solid #eee; }
         .message { margin-bottom: 15px; }
         .message .sender { font-weight: bold; color: #333; }
         .message .text { margin-left: 5px; color: #555; }
         .server-message { font-style: italic; color: #888; text-align: center; margin-bottom: 10px;}
-        #input-area { display: flex; padding: 15px; }
+        #input-area { display: flex; padding: 15px; border-top: 1px solid #eee; }
         #message-input { flex-grow: 1; padding: 10px; border: 1px solid #ddd; border-radius: 4px; margin-right: 10px; }
         #send-button { padding: 10px 20px; background-color: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer; }
         #send-button:hover { background-color: #0056b3; }
@@ -18,23 +38,69 @@
     </style>
 </head>
 <body>
-    <div id="chat-container">
-        <div id="status">Connecting...</div>
-        <div id="chat-output"></div>
-        <div id="input-area">
-            <input type="text" id="message-input" placeholder="Type your message...">
-            <button id="send-button">Send</button>
+    <div class="container">
+        <!-- Authentication Forms -->
+        <div id="auth-container">
+            <h2 id="auth-title">Login</h2>
+            <div id="auth-message"></div>
+
+            <form id="login-form" class="auth-form">
+                <input type="text" id="login-username" placeholder="Username" required>
+                <input type="password" id="login-password" placeholder="Password" required>
+                <button type="submit">Login</button>
+                <div class="toggle-form">
+                    Don't have an account? <button type="button" id="show-register">Register here</button>
+                </div>
+            </form>
+
+            <form id="register-form" class="auth-form">
+                <input type="text" id="register-username" placeholder="Username" required>
+                <input type="password" id="register-password" placeholder="Password" required>
+                <button type="submit">Register</button>
+                <div class="toggle-form">
+                    Already have an account? <button type="button" id="show-login">Login here</button>
+                </div>
+            </form>
+        </div>
+
+        <!-- Chat Application -->
+        <div id="chat-wrapper">
+            <div id="chat-header">
+                <span id="username-display"></span>
+                <button id="logout-button">Logout</button>
+            </div>
+            <div id="chat-container">
+                <div id="status">Connecting...</div>
+                <div id="chat-output"></div>
+                <div id="input-area">
+                    <input type="text" id="message-input" placeholder="Type your message...">
+                    <button id="send-button">Send</button>
+                </div>
+            </div>
         </div>
     </div>
 
     <script>
         document.addEventListener("DOMContentLoaded", function() {
+            const authContainer = document.getElementById('auth-container');
+            const chatWrapper = document.getElementById('chat-wrapper');
+            const loginForm = document.getElementById('login-form');
+            const registerForm = document.getElementById('register-form');
+            const authMessage = document.getElementById('auth-message');
+            const authTitle = document.getElementById('auth-title');
+
+            const showRegisterBtn = document.getElementById('show-register');
+            const showLoginBtn = document.getElementById('show-login');
+
             const chatOutput = document.getElementById('chat-output');
             const messageInput = document.getElementById('message-input');
             const sendButton = document.getElementById('send-button');
             const statusDisplay = document.getElementById('status');
+            const usernameDisplay = document.getElementById('username-display');
+            const logoutButton = document.getElementById('logout-button');
 
-            const socket = new WebSocket('ws://localhost:8080');
+            let socket = null;
+            let currentUsername = null;
 
             function escapeHtml(unsafe) {
                 return unsafe
@@ -45,7 +111,7 @@
                      .replace(/'/g, "&#039;");
             }
 
-            function addMessageToChat(type, sender, text) {
+            function addMessageToChat(type, sender, text, isMe = false) {
                 const messageDiv = document.createElement('div');
                 messageDiv.classList.add('message');
 
@@ -55,7 +121,7 @@
                 } else {
                     const senderSpan = document.createElement('span');
                     senderSpan.classList.add('sender');
-                    senderSpan.textContent = escapeHtml(sender) + ":";
+                    senderSpan.textContent = escapeHtml(sender) + (isMe ? " (Me):" : ":");
 
                     const textSpan = document.createElement('span');
                     textSpan.classList.add('text');
@@ -65,52 +131,215 @@
                     messageDiv.appendChild(textSpan);
                 }
                 chatOutput.appendChild(messageDiv);
-                chatOutput.scrollTop = chatOutput.scrollHeight; // Scroll to bottom
+                chatOutput.scrollTop = chatOutput.scrollHeight;
             }
 
-            socket.onopen = function(e) {
-                statusDisplay.textContent = 'Connected to chat server';
-                console.log("Connection established!");
-                addMessageToChat('server', null, 'Connected to the server.');
-            };
-
-            socket.onmessage = function(event) {
-                console.log(`Data received from server: ${event.data}`);
-                // Assuming server messages are either "User X: message" or "User X has joined/left"
-                const messageParts = event.data.split(':');
-                if (messageParts.length > 1 && event.data.includes('User ')) {
-                     // Heuristic to differentiate user messages from server status messages
-                    const sender = messageParts.shift().trim(); // "User X"
-                    const text = messageParts.join(':').trim();
-                    addMessageToChat('user', sender, text);
-                } else {
-                    addMessageToChat('server', null, event.data);
+            function connectWebSocket(username) {
+                if (socket && (socket.readyState === WebSocket.OPEN || socket.readyState === WebSocket.CONNECTING)) {
+                    console.log("WebSocket already open or connecting.");
+                    return;
                 }
-            };
 
-            socket.onclose = function(event) {
-                statusDisplay.textContent = 'Disconnected from chat server';
-                if (event.wasClean) {
-                    console.log(`Connection closed cleanly, code=${event.code} reason=${event.reason}`);
-                    addMessageToChat('server', null, `Disconnected: ${event.reason || 'Connection closed cleanly'}`);
-                } else {
-                    console.error('Connection died');
-                    addMessageToChat('server', null, 'Connection died. Please refresh.');
+                socket = new WebSocket(`ws://localhost:8080?username=${encodeURIComponent(username)}`);
+                currentUsername = username;
+                usernameDisplay.textContent = `Logged in as: ${username}`;
+
+                socket.onopen = function(e) {
+                    statusDisplay.textContent = 'Connected';
+                    console.log("Connection established!");
+                    addMessageToChat('server', null, 'Connected to the chat.');
+                };
+
+                socket.onmessage = function(event) {
+                    console.log(`Data received from server: ${event.data}`);
+                    try {
+                        const data = JSON.parse(event.data);
+                        if (data.type === 'message' && data.sender && data.text) {
+                             addMessageToChat('user', data.sender, data.text, data.sender === currentUsername);
+                        } else if (data.type === 'server_message' && data.text) {
+                            addMessageToChat('server', null, data.text);
+                        } else if (data.type === 'error' && data.text) {
+                            addMessageToChat('server', null, `Error: ${data.text}`);
+                            // Potentially handle critical errors by logging out or closing socket
+                        }
+                         else {
+                            // Fallback for older message format or unexpected structure
+                            const messageParts = event.data.split(':');
+                             if (messageParts.length > 1 && event.data.toLowerCase().includes('user ')) {
+                                const sender = messageParts.shift().trim();
+                                const text = messageParts.join(':').trim();
+                                addMessageToChat('user', sender, text, sender === currentUsername);
+                            } else {
+                                addMessageToChat('server', null, event.data);
+                            }
+                        }
+                    } catch (error) {
+                         // If data is not JSON, treat as plain text server message
+                        console.warn("Received non-JSON message or malformed JSON:", event.data);
+                        addMessageToChat('server', null, event.data);
+                    }
+                };
+
+                socket.onclose = function(event) {
+                    statusDisplay.textContent = 'Disconnected';
+                    addMessageToChat('server', null, `Disconnected: ${event.reason || 'Connection closed'}`);
+                    if (event.code === 4000) { // Custom code for auth failure from server
+                        console.error("WebSocket closed due to auth failure:", event.reason);
+                        handleLogout(false); // Don't call API, just update UI
+                        authMessage.textContent = event.reason || "Authentication failed. Please login again.";
+                        showAuthUI();
+                    } else if (currentUsername) { // Only show 'connection died' if user was logged in
+                        console.log(`Connection closed, code=${event.code} reason=${event.reason}`);
+                         if (!event.wasClean) {
+                            console.error('Connection died');
+                            addMessageToChat('server', null, 'Connection died. Attempting to reconnect or refresh.');
+                        }
+                    }
+                    socket = null; // Clear the socket variable
+                };
+
+                socket.onerror = function(error) {
+                    statusDisplay.textContent = 'Connection Error';
+                    console.error(`WebSocket Error: ${error.message}`);
+                    addMessageToChat('server', null, `Error: ${error.message || 'Could not connect.'}`);
+                    // Optionally, attempt to logout or show auth UI if connection fails critically
+                };
+            }
+
+            function showAuthUI() {
+                authContainer.style.display = 'block';
+                chatWrapper.style.display = 'none';
+                loginForm.style.display = 'block'; // Default to login form
+                registerForm.style.display = 'none';
+                authTitle.textContent = 'Login';
+                authMessage.textContent = '';
+            }
+
+            function showChatUI(username) {
+                authContainer.style.display = 'none';
+                chatWrapper.style.display = 'block';
+                connectWebSocket(username);
+            }
+
+            // Check session on load
+            fetch('check_session.php')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.loggedIn && data.username) {
+                        showChatUI(data.username);
+                    } else {
+                        showAuthUI();
+                    }
+                })
+                .catch(error => {
+                    console.error("Error checking session:", error);
+                    showAuthUI();
+                    authMessage.textContent = "Error contacting server. Please try again later.";
+                });
+
+            // Toggle forms
+            showRegisterBtn.addEventListener('click', () => {
+                loginForm.style.display = 'none';
+                registerForm.style.display = 'block';
+                authTitle.textContent = 'Register';
+                authMessage.textContent = '';
+            });
+
+            showLoginBtn.addEventListener('click', () => {
+                registerForm.style.display = 'none';
+                loginForm.style.display = 'block';
+                authTitle.textContent = 'Login';
+                authMessage.textContent = '';
+            });
+
+            // Handle Login
+            loginForm.addEventListener('submit', function(e) {
+                e.preventDefault();
+                const username = document.getElementById('login-username').value;
+                const password = document.getElementById('login-password').value;
+                authMessage.textContent = '';
+
+                fetch('login.php', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username, password })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success && data.username) {
+                        showChatUI(data.username);
+                    } else {
+                        authMessage.textContent = data.message || 'Login failed.';
+                    }
+                })
+                .catch(error => {
+                    console.error("Login error:", error);
+                    authMessage.textContent = "Error during login. Please try again.";
+                });
+            });
+
+            // Handle Register
+            registerForm.addEventListener('submit', function(e) {
+                e.preventDefault();
+                const username = document.getElementById('register-username').value;
+                const password = document.getElementById('register-password').value;
+                authMessage.textContent = '';
+
+                fetch('register.php', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username, password })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        authMessage.textContent = data.message + " Please login.";
+                        showLoginBtn.click(); // Switch to login form
+                    } else {
+                        authMessage.textContent = data.message || 'Registration failed.';
+                    }
+                })
+                .catch(error => {
+                    console.error("Registration error:", error);
+                    authMessage.textContent = "Error during registration. Please try again.";
+                });
+            });
+
+            // Handle Logout
+            async function handleLogout(callApi = true) {
+                if (callApi) {
+                    try {
+                        const response = await fetch('logout.php', { method: 'POST' });
+                        const data = await response.json();
+                        console.log(data.message);
+                    } catch (error) {
+                        console.error("Logout API call failed:", error);
+                    }
                 }
-            };
 
-            socket.onerror = function(error) {
-                statusDisplay.textContent = 'Error connecting to chat server';
-                console.error(`WebSocket Error: ${error.message}`);
-                addMessageToChat('server', null, `Error: ${error.message || 'Could not connect to server.'}`);
-            };
+                if (socket) {
+                    socket.close(1000, "User logged out"); // 1000 is normal closure
+                    socket = null;
+                }
+                currentUsername = null;
+                chatOutput.innerHTML = ''; // Clear chat messages
+                showAuthUI();
+                document.getElementById('login-username').value = '';
+                document.getElementById('login-password').value = '';
+            }
 
+            logoutButton.addEventListener('click', () => handleLogout());
+
+            // Send message
             sendButton.onclick = function() {
                 const message = messageInput.value;
-                if (message.trim() !== '') {
+                if (message.trim() !== '' && socket && socket.readyState === WebSocket.OPEN) {
                     socket.send(message);
-                    addMessageToChat('user', 'Me', message); // Optimistically display own message
+                    // Add own message to chat immediately for responsiveness (optional, server will echo it back)
+                    // addMessageToChat('user', currentUsername, message, true);
                     messageInput.value = '';
+                } else if (!socket || socket.readyState !== WebSocket.OPEN) {
+                    addMessageToChat('server', null, "Not connected. Please wait or try logging in again.");
                 }
             };
 
