@@ -1,1 +1,7 @@
 /vendor
+/database/chat_users.sqlite
+# Ignore specific IDE/editor files if any, e.g.
+# .idea/
+# .vscode/
+# *.swp
+# *~
