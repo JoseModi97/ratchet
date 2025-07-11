@@ -37,7 +37,9 @@ class Chat implements MessageComponentInterface {
             try {
                 $pdo_static = new PDO($dsn, $user, $pass, $options);
             } catch (PDOException $e) {
-                echo "Database connection failed in Chat server: " . $e->getMessage() . "\n";
+                $errorMsg = "Database connection failed in Chat server: " . $e->getMessage();
+                echo $errorMsg . "\n";
+                error_log($errorMsg); // Also log to PHP error log if possible
                 // This is a critical error for the chat server if DB is needed for auth
                 // Depending on requirements, you might want to prevent the server from starting
                 // or handle this more gracefully. For now, it will try to operate without DB if connection fails.
@@ -193,7 +195,9 @@ class Chat implements MessageComponentInterface {
 
     private function storeMessage(int $roomId, int $userId, string $messageType, string $content, ?array $metadata = null): ?int {
         if (!$this->pdo) {
-            echo "DB connection not available. Cannot store message.\n";
+            $logMessage = "[FATAL storeMessage] \$this->pdo is null. DB connection likely failed during server startup. Message (Type: {$messageType}, User: {$userId}, Room: {$roomId}) cannot be stored.";
+            echo $logMessage . "\\n";
+            error_log($logMessage); // Attempt to log to standard PHP error log as well
             return null;
         }
         try {
