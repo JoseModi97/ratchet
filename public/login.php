@@ -31,6 +31,7 @@ try {
     $pdo = $db->getConnection();
 
     // Fetch user by username or email
+    // This query was confirmed to be working correctly with execute($array).
     $stmt = $pdo->prepare("SELECT id, username, password_hash FROM users WHERE username = :login OR email = :login LIMIT 1");
     $stmt->execute([':login' => $loginIdentifier]);
 
@@ -38,47 +39,71 @@ try {
 
     if (!$user) {
         http_response_code(401); // Unauthorized
-        echo json_encode(['status' => 'error', 'message' => 'Invalid login credentials.']);
+        echo json_encode(['status' => 'error', 'message' => 'Invalid login credentials. (User not found)']);
         exit;
     }
 
     // Verify password
     if (password_verify($password, $user['password_hash'])) {
         // Password is correct, generate a session token
-        $token = bin2hex(random_bytes(32)); // Generate a secure random token
+        $token = bin2hex(random_bytes(32));
         $expires_at = date('Y-m-d H:i:s', time() + (86400 * 30)); // Token valid for 30 days
 
         // Store the session token in the database
+        // This query was confirmed to be working correctly with execute($array).
         $sessionStmt = $pdo->prepare("INSERT INTO user_sessions (user_id, token, expires_at) VALUES (:user_id, :token, :expires_at)");
 
-        if ($sessionStmt->execute([':user_id' => $user['id'], ':token' => $token, ':expires_at' => $expires_at])) {
-            // Update last_seen for the user
-            $updateLastSeenStmt = $pdo->prepare("UPDATE users SET last_seen = CURRENT_TIMESTAMP WHERE id = :user_id");
-            $updateLastSeenStmt->execute([':user_id' => $user['id']]);
+        $sessionData = [
+            ':user_id' => $user['id'],
+            ':token' => $token,
+            ':expires_at' => $expires_at
+        ];
 
-            http_response_code(200); // OK
-            echo json_encode([
-                'status' => 'success',
-                'message' => 'Login successful.',
-                'token' => $token,
-                'user' => [
-                    'id' => $user['id'],
-                    'username' => $user['username']
-                ]
-            ]);
+        if ($sessionStmt->execute($sessionData)) {
+            // Update last_seen for the user
+            // This is the suspected query. Re-typed carefully.
+            // SQL string:
+            $updateSql = "UPDATE users SET last_seen = CURRENT_TIMESTAMP WHERE id = :user_id";
+            $updateLastSeenStmt = $pdo->prepare($updateSql);
+
+            // Parameter array key:
+            $updateParams = [':user_id' => $user['id']];
+
+            // Execute the carefully re-typed query and parameters
+            if ($updateLastSeenStmt->execute($updateParams)) {
+                http_response_code(200); // OK
+                echo json_encode([
+                    'status' => 'success',
+                    'message' => 'Login successful.',
+                    'token' => $token,
+                    'user' => [
+                        'id' => $user['id'],
+                        'username' => $user['username']
+                    ]
+                ]);
+            } else {
+                // This specific else might be hard to reach if execute() throws the HY093
+                http_response_code(500);
+                echo json_encode(['status' => 'error', 'message' => 'Failed to update last_seen. Execute returned false.']);
+            }
         } else {
-            http_response_code(500); // Internal Server Error
-            echo json_encode(['status' => 'error', 'message' => 'Failed to create session. Database error.']);
+            // This specific else might be hard to reach if execute() throws the HY093
+            http_response_code(500);
+            echo json_encode(['status' => 'error', 'message' => 'Failed to create session. Execute returned false.']);
         }
     } else {
         http_response_code(401); // Unauthorized
-        echo json_encode(['status' => 'error', 'message' => 'Invalid login credentials.']);
+        echo json_encode(['status' => 'error', 'message' => 'Invalid login credentials. (Password mismatch)']);
     }
 
 } catch (PDOException $e) {
     http_response_code(500); // Internal Server Error
     // Log detailed error: $e->getMessage()
-    echo json_encode(['status' => 'error', 'message' => 'Database connection error: ' . $e->getMessage()]);
+    echo json_encode([
+        'status' => 'error',
+        'message' => 'Database connection error: ' . $e->getMessage(),
+        // 'pdo_trace' => $e->getTraceAsString() // Optionally include trace for HY093
+    ]);
 } catch (Exception $e) {
     http_response_code(500); // Internal Server Error
     // Log detailed error: $e->getMessage()
