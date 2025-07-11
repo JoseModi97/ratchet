@@ -3,134 +3,266 @@ namespace MyApp;
 
 use Ratchet\MessageComponentInterface;
 use Ratchet\ConnectionInterface;
+use \PDO;
+use \PDOException;
 
 class Chat implements MessageComponentInterface {
-    protected $clients;
-    // Store username associated with a connection: [resourceId => username]
-    protected $usernames;
+    // Store connections per room: [roomId => SplObjectStorage(connections)]
+    protected $rooms;
+    // Store PDO connection
+    private $pdo;
 
     public function __construct() {
-        $this->clients = new \SplObjectStorage;
-        $this->usernames = [];
+        $this->rooms = [];
+        $this->pdo = $this->getDbConnection();
         echo "Chat server started...\n";
     }
 
-    private function getUsername(ConnectionInterface $conn) {
-        return $this->usernames[$conn->resourceId] ?? null;
+    private function getDbConnection() {
+        static $pdo_static = null;
+        if ($pdo_static === null) {
+            // Database connection details (should match db.php and your setup)
+            $host = 'localhost';
+            $db   = 'chat_app';
+            $user = 'root';
+            $pass = ''; // Empty password as configured
+            $charset = 'utf8mb4';
+
+            $dsn = "mysql:host=$host;dbname=$db;charset=$charset";
+            $options = [
+                PDO::ATTR_ERRMODE            => PDO::ERRMODE_EXCEPTION,
+                PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+                PDO::ATTR_EMULATE_PREPARES   => false,
+            ];
+            try {
+                $pdo_static = new PDO($dsn, $user, $pass, $options);
+            } catch (PDOException $e) {
+                echo "Database connection failed in Chat server: " . $e->getMessage() . "\n";
+                // This is a critical error for the chat server if DB is needed for auth
+                // Depending on requirements, you might want to prevent the server from starting
+                // or handle this more gracefully. For now, it will try to operate without DB if connection fails.
+                return null; // Return null if connection fails
+            }
+        }
+        return $pdo_static;
     }
 
-    private function broadcastServerMessage($messageText) {
-        $message = json_encode(['type' => 'server_message', 'text' => $messageText]);
-        foreach ($this->clients as $client) {
+    private function getUserId(string $username): ?int {
+        if (!$this->pdo) return null;
+        try {
+            $stmt = $this->pdo->prepare("SELECT id FROM users WHERE username = :username");
+            $stmt->bindParam(':username', $username);
+            $stmt->execute();
+            $user = $stmt->fetch(PDO::FETCH_ASSOC);
+            return $user ? (int)$user['id'] : null;
+        } catch (PDOException $e) {
+            echo "Error fetching user ID for '{$username}': " . $e->getMessage() . "\n";
+            return null;
+        }
+    }
+
+    private function isUserMemberOfRoom(int $userId, int $roomId): bool {
+        if (!$this->pdo) return false; // Assume not member if DB is down
+        try {
+            $stmt = $this->pdo->prepare("SELECT 1 FROM chat_room_members WHERE user_id = :user_id AND room_id = :room_id");
+            $stmt->bindParam(':user_id', $userId, PDO::PARAM_INT);
+            $stmt->bindParam(':room_id', $roomId, PDO::PARAM_INT);
+            $stmt->execute();
+            return $stmt->fetchColumn() !== false;
+        } catch (PDOException $e) {
+            echo "Error checking room membership for user {$userId} in room {$roomId}: " . $e->getMessage() . "\n";
+            return false;
+        }
+    }
+
+    private function getRoomName(int $roomId): ?string {
+        if (!$this->pdo) return 'Unknown Room';
+        try {
+            $stmt = $this->pdo->prepare("SELECT name FROM chat_rooms WHERE id = :room_id");
+            $stmt->bindParam(':room_id', $roomId, PDO::PARAM_INT);
+            $stmt->execute();
+            $room = $stmt->fetch(PDO::FETCH_ASSOC);
+            return $room ? $room['name'] : null;
+        } catch (PDOException $e) {
+            echo "Error fetching room name for room {$roomId}: " . $e->getMessage() . "\n";
+            return null;
+        }
+    }
+
+
+    private function sendErrorMessage(ConnectionInterface $conn, $errorMessage, $closeCode = null, $closeReason = null) {
+        $message = json_encode(['type' => 'error', 'text' => $errorMessage]);
+        $conn->send($message);
+        if ($closeCode !== null) {
+            $conn->close($closeCode, $closeReason ?? $errorMessage);
+        }
+    }
+
+    private function broadcastToRoom(int $roomId, array $messageData, ConnectionInterface $excludeConn = null) {
+        if (!isset($this->rooms[$roomId])) {
+            return;
+        }
+        $message = json_encode($messageData);
+        foreach ($this->rooms[$roomId] as $client) {
+            if ($excludeConn !== null && $client === $excludeConn) {
+                continue;
+            }
             $client->send($message);
         }
     }
 
-    private function sendErrorMessage(ConnectionInterface $conn, $errorMessage) {
-        $message = json_encode(['type' => 'error', 'text' => $errorMessage]);
-        $conn->send($message);
-    }
-
     public function onOpen(ConnectionInterface $conn) {
-        // Extract username from query string
         $queryString = $conn->httpRequest->getUri()->getQuery();
         parse_str($queryString, $queryParams);
         $username = $queryParams['username'] ?? null;
+        $roomIdStr = $queryParams['roomId'] ?? null;
 
-        if (empty($username)) {
-            echo "Connection attempt without username. ({$conn->resourceId}) Closing.\n";
-            $this->sendErrorMessage($conn, "Username parameter is missing. Connection rejected.");
-            $conn->close(4000, "Username required"); // 4000 is a custom close code
+        if (empty($username) || empty($roomIdStr)) {
+            $this->sendErrorMessage($conn, "Username and roomId parameters are required.", 4001, "Username and roomId required");
+            echo "Connection attempt without username or roomId. ({$conn->resourceId}) Closing.\n";
             return;
         }
 
-        // Check if username is already connected (simple check, could be more robust)
-        if (in_array($username, $this->usernames)) {
-            echo "Connection attempt with already connected username: {$username} ({$conn->resourceId}). Closing.\n";
-            $this->sendErrorMessage($conn, "Username '{$username}' is already in use. Connection rejected.");
-            $conn->close(4001, "Username in use");
+        if (!ctype_digit($roomIdStr)) {
+            $this->sendErrorMessage($conn, "Invalid roomId format.", 4002, "Invalid roomId format");
+            echo "Connection attempt with invalid roomId format: {$roomIdStr}. ({$conn->resourceId}) Closing.\n";
+            return;
+        }
+        $roomId = (int)$roomIdStr;
+
+        if (!$this->pdo) {
+            $this->sendErrorMessage($conn, "Chat server database offline. Please try again later.", 5003, "Server DB offline");
+            echo "DB connection not available. Rejecting new connection {$conn->resourceId}.\n";
             return;
         }
 
-        $this->clients->attach($conn);
-        $this->usernames[$conn->resourceId] = $username;
-        echo "New connection! User: {$username} ({$conn->resourceId})\n";
+        $userId = $this->getUserId($username);
+        if ($userId === null) {
+            $this->sendErrorMessage($conn, "User '{$username}' not found or database error.", 4003, "User not found");
+            echo "User '{$username}' not found for connection {$conn->resourceId}. Closing.\n";
+            return;
+        }
 
-        $joinMessage = json_encode([
+        if (!$this->isUserMemberOfRoom($userId, $roomId)) {
+            $this->sendErrorMessage($conn, "User '{$username}' is not a member of room {$roomId}.", 4004, "Not a room member");
+            echo "User '{$username}' (ID: {$userId}) is not a member of room {$roomId}. Connection {$conn->resourceId} denied.\n";
+            return;
+        }
+
+        // Check for duplicate connections from the same user to the same room
+        if (isset($this->rooms[$roomId])) {
+            foreach ($this->rooms[$roomId] as $client) {
+                if (isset($client->userId) && $client->userId === $userId) {
+                    $this->sendErrorMessage($conn, "User '{$username}' is already connected to this room.", 4005, "Already connected to room");
+                    echo "Duplicate connection attempt by user '{$username}' (ID: {$userId}) to room {$roomId}. Closing new connection {$conn->resourceId}.\n";
+                    // Optionally, you could close the OLD connection instead, or allow multiple connections.
+                    // For now, rejecting the new one.
+                    // $client->close(4006, "Newer connection established for this user in this room.");
+                    return;
+                }
+            }
+        }
+
+
+        if (!isset($this->rooms[$roomId])) {
+            $this->rooms[$roomId] = new \SplObjectStorage;
+        }
+        $this->rooms[$roomId]->attach($conn);
+
+        // Store essential info on the connection object
+        $conn->userId = $userId;
+        $conn->username = $username;
+        $conn->roomId = $roomId;
+
+        $roomName = $this->getRoomName($roomId) ?? "ID {$roomId}";
+        echo "New connection! User: {$username} (ID: {$userId}, Conn: {$conn->resourceId}) joined Room: {$roomName} (ID: {$roomId})\n";
+
+        $joinMessage = [
             'type' => 'server_message',
-            'text' => "User '{$username}' has joined the chat."
-        ]);
-        foreach ($this->clients as $client) {
-            // Don't send to self, but it's a server message, so all get it.
-            $client->send($joinMessage);
-        }
+            'text' => "User '{$username}' has joined the room '{$roomName}'."
+        ];
+        $this->broadcastToRoom($roomId, $joinMessage);
     }
 
     public function onMessage(ConnectionInterface $from, $msg) {
-        $senderUsername = $this->getUsername($from);
-        if (!$senderUsername) {
-            echo "Message from unknown user (resourceId {$from->resourceId}). Ignoring.\n";
-            $this->sendErrorMessage($from, "You are not properly authenticated. Message rejected.");
-            // $from->close(4000, "Not authenticated"); // Optionally close connection
+        if (!isset($from->username) || !isset($from->roomId)) {
+            $this->sendErrorMessage($from, "Connection not fully initialized. Message rejected.", 4007, "Connection not initialized");
+            echo "Message from uninitialized connection (resourceId {$from->resourceId}). Ignoring.\n";
             return;
         }
 
-        $numRecv = count($this->clients) - 1;
-        echo sprintf('User %s (Connection %d) sending message "%s" to %d other connection%s' . "\n",
-            $senderUsername, $from->resourceId, $msg, $numRecv, $numRecv == 1 ? '' : 's');
+        $senderUsername = $from->username;
+        $roomId = $from->roomId;
+        $roomName = $this->getRoomName($roomId) ?? "ID {$roomId}";
 
-        $messageData = json_encode([
+        $numRecv = isset($this->rooms[$roomId]) ? count($this->rooms[$roomId]) -1 : 0; // -1 for sender
+        if ($numRecv < 0) $numRecv = 0;
+
+        echo sprintf('User %s (Conn %d) in Room %s (ID %d) sending message "%s" to %d other connection%s' . "\n",
+            $senderUsername, $from->resourceId, $roomName, $roomId, $msg, $numRecv, $numRecv == 1 ? '' : 's');
+
+        $messageData = [
             'type' => 'message',
             'sender' => $senderUsername,
-            'text' => $msg // Assuming $msg is plain text from client
-        ]);
+            'text' => $msg, // Assuming $msg is plain text from client
+            'roomId' => $roomId // Good to include for client-side context if needed
+        ];
 
-        foreach ($this->clients as $client) {
-            // The sender is not the receiver, send to each client connected
-            // Client-side will handle if sender is "Me"
-            $client->send($messageData);
-        }
+        // Broadcast to current room only
+        $this->broadcastToRoom($roomId, $messageData);
     }
 
     public function onClose(ConnectionInterface $conn) {
-        $username = $this->getUsername($conn);
+        if (!isset($conn->username) || !isset($conn->roomId)) {
+            echo "Uninitialized connection {$conn->resourceId} has disconnected\n";
+            return;
+        }
 
-        $this->clients->detach($conn);
-        unset($this->usernames[$conn->resourceId]);
+        $username = $conn->username;
+        $roomId = $conn->roomId;
+        $roomName = $this->getRoomName($roomId) ?? "ID {$roomId}";
 
-        if ($username) {
-            echo "User '{$username}' (Connection {$conn->resourceId}) has disconnected\n";
-            $leaveMessage = json_encode([
+        if (isset($this->rooms[$roomId])) {
+            $this->rooms[$roomId]->detach($conn);
+            echo "User '{$username}' (Conn {$conn->resourceId}) has disconnected from Room: {$roomName} (ID: {$roomId})\n";
+
+            $leaveMessage = [
                 'type' => 'server_message',
-                'text' => "User '{$username}' has left the chat."
-            ]);
-            foreach ($this->clients as $client) {
-                $client->send($leaveMessage);
+                'text' => "User '{$username}' has left the room '{$roomName}'."
+            ];
+            $this->broadcastToRoom($roomId, $leaveMessage);
+
+            if (count($this->rooms[$roomId]) == 0) {
+                echo "Room {$roomName} (ID: {$roomId}) is now empty. Removing from active rooms.\n";
+                unset($this->rooms[$roomId]);
             }
         } else {
-            echo "Connection {$conn->resourceId} (unknown user) has disconnected\n";
+            echo "User '{$username}' (Conn {$conn->resourceId}) disconnected, but room {$roomId} was not found in active rooms list.\n";
         }
     }
 
     public function onError(ConnectionInterface $conn, \Exception $e) {
-        $username = $this->getUsername($conn);
-        $identifier = $username ? "User '{$username}' ({$conn->resourceId})" : "Connection {$conn->resourceId}";
+        $identifier = "Connection {$conn->resourceId}";
+        if (isset($conn->username) && isset($conn->roomId)) {
+            $identifier = "User '{$conn->username}' (Conn {$conn->resourceId}) in Room ID {$conn->roomId}";
+        } elseif (isset($conn->username)) {
+            $identifier = "User '{$conn->username}' (Conn {$conn->resourceId})";
+        }
 
         echo "An error has occurred for {$identifier}: {$e->getMessage()}\n";
+        // Additional details for debugging if needed
+        // echo "Error details: File: " . $e->getFile() . " Line: " . $e->getLine() . "\n";
+        // echo "Trace: " . $e->getTraceAsString() . "\n";
 
-        // Optionally, notify other clients if it's a user-specific error that causes disconnect
-        // if ($username) {
-        //     $errorMessage = json_encode([
-        //         'type' => 'server_message',
-        //         'text' => "User '{$username}' experienced an error and may have disconnected."
-        //     ]);
-        //     foreach ($this->clients as $client) {
-        //         if ($conn !== $client) {
-        //             $client->send($errorMessage);
-        //         }
-        //     }
-        // }
+
+        // Send a generic error to the client causing the error
         $this->sendErrorMessage($conn, "An internal server error occurred: " . $e->getMessage());
-        $conn->close();
+
+        // It's important to close the connection if an error makes its state uncertain
+        $conn->close(1011, "Internal server error"); // 1011 is for internal server error
+
+        // Consider if other clients in the room should be notified,
+        // but typically individual client errors shouldn't spam the room.
+        // If the error is critical for the room, different logic would be needed.
     }
 }

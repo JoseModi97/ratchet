@@ -22,11 +22,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $user = $stmt->fetch(PDO::FETCH_ASSOC);
 
             if ($user && password_verify($password, $user['password_hash'])) {
-                $_SESSION['user_id'] = $user['id'];
+                $_SESSION['user_id'] = (int)$user['id'];
                 $_SESSION['username'] = $user['username'];
                 $response['success'] = true;
                 $response['message'] = 'Login successful.';
                 $response['username'] = $user['username'];
+                $response['userId'] = (int)$user['id']; // Add userId to the response
             } else {
                 $response['message'] = 'Invalid username or password.';
             }

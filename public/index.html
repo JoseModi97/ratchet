@@ -1,49 +1,89 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Ratchet Chat - Login</title>
+    <title>Chat App</title>
     <style>
-        body { font-family: Arial, sans-serif; margin: 0; padding: 0; background-color: #f4f4f4; display: flex; justify-content: center; align-items: center; min-height: 100vh; }
-        .container { max-width: 600px; margin: 30px auto; background-color: #fff; border-radius: 8px; box-shadow: 0 0 10px rgba(0,0,0,0.1); overflow: hidden; }
+        body { font-family: Arial, sans-serif; margin: 0; padding: 0; background-color: #f4f4f4; display: flex; justify-content: center; align-items: center; min-height: 100vh; font-size: 14px; }
+        .container { width: 100%; max-width: 700px; margin: 20px; background-color: #fff; border-radius: 8px; box-shadow: 0 0 15px rgba(0,0,0,0.1); display: flex; flex-direction: column; }
+
+        .header-bar { background-color: #007bff; color: white; padding: 15px 20px; display: flex; justify-content: space-between; align-items: center; border-top-left-radius: 8px; border-top-right-radius: 8px; }
+        .header-bar #user-info { font-weight: bold; }
+        .header-bar #logout-button { background-color: #dc3545; color: white; border: none; padding: 8px 12px; border-radius: 4px; cursor: pointer; }
+        .header-bar #logout-button:hover { background-color: #c82333; }
 
         /* Auth Forms */
         #auth-container { padding: 30px; }
         #auth-container h2 { text-align: center; margin-bottom: 20px; color: #333; }
-        .auth-form { display: none; /* Initially hidden, JS will show one */ }
+        .auth-form { display: none; }
         .auth-form input[type="text"], .auth-form input[type="password"] { width: calc(100% - 22px); padding: 10px; margin-bottom: 15px; border: 1px solid #ddd; border-radius: 4px; }
-        .auth-form button { width: 100%; padding: 10px; background-color: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 16px; }
-        .auth-form button:hover { background-color: #0056b3; }
+        .auth-form button[type="submit"] { width: 100%; padding: 10px; background-color: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 16px; }
+        .auth-form button[type="submit"]:hover { background-color: #0056b3; }
         .toggle-form { text-align: center; margin-top: 15px; }
-        .toggle-form button { background: none; border: none; color: #007bff; cursor: pointer; text-decoration: underline; }
-        #auth-message { text-align: center; margin-bottom: 15px; color: red; }
+        .toggle-form button { background: none; border: none; color: #007bff; cursor: pointer; text-decoration: underline; font-size: 0.9em; }
+        #auth-message { text-align: center; margin-bottom: 15px; color: red; min-height: 1.2em; }
+
+        /* Room Dashboard */
+        #room-dashboard { padding: 20px; display: none; }
+        #room-dashboard h2 { margin-top: 0; color: #333; text-align: center; }
+        #room-dashboard h3 { margin-top: 20px; margin-bottom: 10px; color: #555; border-bottom: 1px solid #eee; padding-bottom: 5px;}
+        #create-room-form input[type="text"] { width: calc(70% - 12px); padding: 8px; margin-right: 10px; border: 1px solid #ddd; border-radius: 4px;}
+        #create-room-form button { padding: 8px 15px; background-color: #28a745; color: white; border: none; border-radius: 4px; cursor: pointer; }
+        #create-room-form button:hover { background-color: #218838; }
+        #room-list { list-style: none; padding: 0; max-height: 200px; overflow-y: auto; border: 1px solid #eee; border-radius: 4px; }
+        #room-list li { padding: 10px; border-bottom: 1px solid #eee; cursor: pointer; display: flex; justify-content: space-between; align-items: center; }
+        #room-list li:last-child { border-bottom: none; }
+        #room-list li:hover { background-color: #f0f0f0; }
+        #room-list .room-creator { font-size: 0.8em; color: #777; }
+        #dashboard-message { text-align: center; margin-top: 10px; color: #555; }
+
 
         /* Chat Area */
-        #chat-wrapper { display: none; /* Initially hidden */ }
-        #chat-header { background-color: #007bff; color: white; padding: 15px; display: flex; justify-content: space-between; align-items: center; }
-        #chat-header #username-display { font-weight: bold; }
-        #chat-header #logout-button { background-color: #dc3545; color: white; border: none; padding: 8px 12px; border-radius: 4px; cursor: pointer; }
-        #chat-header #logout-button:hover { background-color: #c82333; }
+        #chat-wrapper { display: none; flex-grow: 1; flex-direction: column; }
+        #chat-header { background-color: #6c757d; color: white; padding: 10px 20px; display: flex; justify-content: space-between; align-items: center; }
+        #chat-header #current-room-display { font-weight: bold; }
+        #chat-header #back-to-dashboard { background-color: #ffc107; color: #212529; border: none; padding: 6px 10px; border-radius: 4px; cursor: pointer; font-size: 0.9em; }
+        #chat-header #back-to-dashboard:hover { background-color: #e0a800; }
 
-        #chat-container { /* Styles from original, slightly adjusted */ }
-        #chat-output { height: 400px; overflow-y: auto; padding: 20px; border-bottom: 1px solid #eee; }
-        .message { margin-bottom: 15px; }
-        .message .sender { font-weight: bold; color: #333; }
-        .message .text { margin-left: 5px; color: #555; }
-        .server-message { font-style: italic; color: #888; text-align: center; margin-bottom: 10px;}
-        #input-area { display: flex; padding: 15px; border-top: 1px solid #eee; }
+        #chat-content-wrapper { display: flex; flex-grow: 1; overflow: hidden; }
+
+        #chat-container { flex-grow: 1; display: flex; flex-direction: column; overflow: hidden; }
+        #chat-output { height: 300px; /* Adjusted for member list */ overflow-y: auto; padding: 15px; border-bottom: 1px solid #eee; flex-grow: 1;}
+        .message { margin-bottom: 12px; line-height: 1.4; }
+        .message .sender { font-weight: bold; color: #007bff; }
+        .message .text { margin-left: 8px; color: #333; word-wrap: break-word; }
+        .server-message { font-style: italic; color: #6c757d; text-align: center; margin-bottom: 10px; font-size: 0.9em;}
+        #input-area { display: flex; padding: 15px; border-top: 1px solid #eee; background-color: #f8f9fa; }
         #message-input { flex-grow: 1; padding: 10px; border: 1px solid #ddd; border-radius: 4px; margin-right: 10px; }
         #send-button { padding: 10px 20px; background-color: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer; }
         #send-button:hover { background-color: #0056b3; }
-        #status { padding: 10px; background-color: #eee; text-align: center; font-size: 0.9em; color: #777; }
+        #status { padding: 8px 15px; background-color: #e9ecef; text-align: center; font-size: 0.85em; color: #495057; border-bottom: 1px solid #ddd;}
+
+        /* Member List & Invite Area */
+        #member-invite-area { width: 200px; border-left: 1px solid #ddd; padding: 15px; background-color: #f8f9fa; display: flex; flex-direction: column; }
+        #member-invite-area h4 { margin-top: 0; margin-bottom: 10px; font-size: 1.1em; color: #333; }
+        #member-list { list-style: none; padding: 0; margin-bottom: 15px; max-height: 150px; overflow-y: auto; }
+        #member-list li { padding: 5px 0; font-size: 0.9em; display: flex; justify-content: space-between; align-items: center; }
+        #member-list .remove-member-btn { background: none; border: none; color: #dc3545; cursor: pointer; font-size: 0.8em; padding: 2px 5px;}
+        #member-list .remove-member-btn:hover { text-decoration: underline; }
+
+        #invite-form input[type="text"] { width: calc(100% - 18px); padding: 6px; margin-bottom: 8px; border: 1px solid #ccc; border-radius: 3px; font-size: 0.9em;}
+        #invite-form button { width: 100%; padding: 6px; background-color: #17a2b8; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 0.9em;}
+        #invite-form button:hover { background-color: #138496; }
+        #member-invite-message { font-size: 0.8em; color: green; margin-top: 5px; min-height: 1em;}
+
     </style>
 </head>
 <body>
     <div class="container">
+        <div class="header-bar" style="display: none;" id="main-header-bar">
+            <span id="user-info"></span>
+            <button id="logout-button">Logout</button>
+        </div>
+
         <!-- Authentication Forms -->
         <div id="auth-container">
             <h2 id="auth-title">Login</h2>
             <div id="auth-message"></div>
-
             <form id="login-form" class="auth-form">
                 <input type="text" id="login-username" placeholder="Username" required>
                 <input type="password" id="login-password" placeholder="Password" required>
@@ -52,7 +92,6 @@
                     Don't have an account? <button type="button" id="show-register">Register here</button>
                 </div>
             </form>
-
             <form id="register-form" class="auth-form">
                 <input type="text" id="register-username" placeholder="Username" required>
                 <input type="password" id="register-password" placeholder="Password" required>
@@ -63,18 +102,45 @@
             </form>
         </div>
 
+        <!-- Room Dashboard -->
+        <div id="room-dashboard">
+            <h2>Room Dashboard</h2>
+            <div id="dashboard-message"></div>
+            <form id="create-room-form">
+                <h3>Create New Room</h3>
+                <input type="text" id="new-room-name" placeholder="Enter room name" required>
+                <button type="submit">Create Room</button>
+            </form>
+            <h3>Your Rooms</h3>
+            <ul id="room-list">
+                <!-- Room items will be populated by JS -->
+            </ul>
+        </div>
+
         <!-- Chat Application -->
         <div id="chat-wrapper">
             <div id="chat-header">
-                <span id="username-display"></span>
-                <button id="logout-button">Logout</button>
+                <span id="current-room-display"></span>
+                <button id="back-to-dashboard">Back to Rooms</button>
             </div>
-            <div id="chat-container">
-                <div id="status">Connecting...</div>
-                <div id="chat-output"></div>
-                <div id="input-area">
-                    <input type="text" id="message-input" placeholder="Type your message...">
-                    <button id="send-button">Send</button>
+            <div id="status">Connecting...</div>
+            <div id="chat-content-wrapper">
+                <div id="chat-container">
+                    <div id="chat-output"></div>
+                    <div id="input-area">
+                        <input type="text" id="message-input" placeholder="Type your message...">
+                        <button id="send-button">Send</button>
+                    </div>
+                </div>
+                <div id="member-invite-area" style="display: none;"> <!-- Initially hidden, shown if creator -->
+                    <h4>Members</h4>
+                    <ul id="member-list"></ul>
+                    <div id="member-invite-message"></div>
+                    <form id="invite-form">
+                        <h4>Invite User</h4>
+                        <input type="text" id="invite-username" placeholder="Username to invite" required>
+                        <button type="submit">Invite</button>
+                    </form>
                 </div>
             </div>
         </div>
@@ -82,25 +148,50 @@
 
     <script>
         document.addEventListener("DOMContentLoaded", function() {
+            // UI Elements - Auth
             const authContainer = document.getElementById('auth-container');
-            const chatWrapper = document.getElementById('chat-wrapper');
             const loginForm = document.getElementById('login-form');
             const registerForm = document.getElementById('register-form');
             const authMessage = document.getElementById('auth-message');
             const authTitle = document.getElementById('auth-title');
-
             const showRegisterBtn = document.getElementById('show-register');
             const showLoginBtn = document.getElementById('show-login');
 
+            // UI Elements - Main Header
+            const mainHeaderBar = document.getElementById('main-header-bar');
+            const userInfoDisplay = document.getElementById('user-info');
+            const logoutButton = document.getElementById('logout-button');
+
+            // UI Elements - Room Dashboard
+            const roomDashboard = document.getElementById('room-dashboard');
+            const createRoomForm = document.getElementById('create-room-form');
+            const newRoomNameInput = document.getElementById('new-room-name');
+            const roomListUL = document.getElementById('room-list');
+            const dashboardMessage = document.getElementById('dashboard-message');
+
+            // UI Elements - Chat
+            const chatWrapper = document.getElementById('chat-wrapper');
+            const chatHeader = document.getElementById('chat-header');
+            const currentRoomDisplay = document.getElementById('current-room-display');
+            const backToDashboardButton = document.getElementById('back-to-dashboard');
+            const statusDisplay = document.getElementById('status');
             const chatOutput = document.getElementById('chat-output');
             const messageInput = document.getElementById('message-input');
             const sendButton = document.getElementById('send-button');
-            const statusDisplay = document.getElementById('status');
-            const usernameDisplay = document.getElementById('username-display');
-            const logoutButton = document.getElementById('logout-button');
+
+            // UI Elements - Member/Invite Area
+            const memberInviteArea = document.getElementById('member-invite-area');
+            const memberListUL = document.getElementById('member-list');
+            const inviteForm = document.getElementById('invite-form');
+            const inviteUsernameInput = document.getElementById('invite-username');
+            const memberInviteMessage = document.getElementById('member-invite-message');
+
 
             let socket = null;
             let currentUsername = null;
+            let currentUserId = null;
+            let currentRoomId = null;
+            let currentRoomCreatorId = null;
 
             function escapeHtml(unsafe) {
                 return unsafe
@@ -121,7 +212,7 @@
                 } else {
                     const senderSpan = document.createElement('span');
                     senderSpan.classList.add('sender');
-                    senderSpan.textContent = escapeHtml(sender) + (isMe ? " (Me):" : ":");
+                    senderSpan.textContent = escapeHtml(sender) + (isMe ? " (Me)" : "") + ": ";
 
                     const textSpan = document.createElement('span');
                     textSpan.classList.add('text');
@@ -134,20 +225,75 @@
                 chatOutput.scrollTop = chatOutput.scrollHeight;
             }
 
-            function connectWebSocket(username) {
+            function setDashboardMessage(message, isError = false) {
+                dashboardMessage.textContent = message;
+                dashboardMessage.style.color = isError ? 'red' : 'green';
+                setTimeout(() => dashboardMessage.textContent = '', 3000);
+            }
+
+            function setMemberInviteMessage(message, isError = false) {
+                memberInviteMessage.textContent = message;
+                memberInviteMessage.style.color = isError ? 'red' : 'green';
+                setTimeout(() => memberInviteMessage.textContent = '', 3000);
+            }
+
+
+            // --- UI State Management ---
+            function showAuthUI() {
+                authContainer.style.display = 'block';
+                roomDashboard.style.display = 'none';
+                chatWrapper.style.display = 'none';
+                mainHeaderBar.style.display = 'none';
+                loginForm.style.display = 'block';
+                registerForm.style.display = 'none';
+                authTitle.textContent = 'Login';
+                authMessage.textContent = '';
+            }
+
+            async function showRoomDashboardUI(username) {
+                currentUsername = username; // Set from login or session check
+                authContainer.style.display = 'none';
+                chatWrapper.style.display = 'none';
+                roomDashboard.style.display = 'block';
+                mainHeaderBar.style.display = 'flex';
+                userInfoDisplay.textContent = `Logged in as: ${username}`;
+                await loadUserRooms();
+            }
+
+            function showChatUI(username, roomId, roomName, roomCreatorId) {
+                currentUsername = username; // Should already be set
+                currentRoomId = roomId;
+                currentRoomCreatorId = roomCreatorId;
+
+                authContainer.style.display = 'none';
+                roomDashboard.style.display = 'none';
+                chatWrapper.style.display = 'flex'; // Changed to flex for layout
+                mainHeaderBar.style.display = 'flex'; // Ensure header is visible
+
+                currentRoomDisplay.textContent = `Room: ${escapeHtml(roomName)}`;
+                chatOutput.innerHTML = ''; // Clear previous messages
+                statusDisplay.textContent = 'Connecting...';
+
+                connectWebSocket(username, roomId);
+                updateMemberInviteAreaVisibility(); // Show/hide based on creator status
+                if (memberInviteArea.style.display !== 'none') {
+                    loadRoomMembers();
+                }
+            }
+
+            // --- WebSocket Logic (Step 6) ---
+            function connectWebSocket(username, roomId) {
                 if (socket && (socket.readyState === WebSocket.OPEN || socket.readyState === WebSocket.CONNECTING)) {
-                    console.log("WebSocket already open or connecting.");
-                    return;
+                    console.log("WebSocket closing existing connection before opening new one.");
+                    socket.close();
                 }
 
-                socket = new WebSocket(`ws://localhost:8080?username=${encodeURIComponent(username)}`);
-                currentUsername = username;
-                usernameDisplay.textContent = `Logged in as: ${username}`;
+                socket = new WebSocket(`ws://localhost:8080?username=${encodeURIComponent(username)}&roomId=${roomId}`);
 
                 socket.onopen = function(e) {
                     statusDisplay.textContent = 'Connected';
-                    console.log("Connection established!");
-                    addMessageToChat('server', null, 'Connected to the chat.');
+                    console.log(`Connection established to room ${roomId}!`);
+                    addMessageToChat('server', null, `Connected to room '${currentRoomDisplay.textContent.replace("Room: ","")}'.`);
                 };
 
                 socket.onmessage = function(event) {
@@ -158,86 +304,222 @@
                              addMessageToChat('user', data.sender, data.text, data.sender === currentUsername);
                         } else if (data.type === 'server_message' && data.text) {
                             addMessageToChat('server', null, data.text);
-                        } else if (data.type === 'error' && data.text) {
-                            addMessageToChat('server', null, `Error: ${data.text}`);
-                            // Potentially handle critical errors by logging out or closing socket
-                        }
-                         else {
-                            // Fallback for older message format or unexpected structure
-                            const messageParts = event.data.split(':');
-                             if (messageParts.length > 1 && event.data.toLowerCase().includes('user ')) {
-                                const sender = messageParts.shift().trim();
-                                const text = messageParts.join(':').trim();
-                                addMessageToChat('user', sender, text, sender === currentUsername);
-                            } else {
-                                addMessageToChat('server', null, event.data);
+                             // If a join/leave message, refresh member list if user is creator
+                            if ((data.text.includes('has joined') || data.text.includes('has left')) && currentUserId === currentRoomCreatorId) {
+                                loadRoomMembers();
                             }
+                        } else if (data.type === 'error' && data.text) {
+                            addMessageToChat('server', null, `Server Error: ${data.text}`);
+                        } else {
+                            addMessageToChat('server', null, event.data); // Fallback
                         }
                     } catch (error) {
-                         // If data is not JSON, treat as plain text server message
-                        console.warn("Received non-JSON message or malformed JSON:", event.data);
+                        console.warn("Received non-JSON message or malformed JSON:", event.data, error);
                         addMessageToChat('server', null, event.data);
                     }
                 };
 
                 socket.onclose = function(event) {
                     statusDisplay.textContent = 'Disconnected';
-                    addMessageToChat('server', null, `Disconnected: ${event.reason || 'Connection closed'}`);
-                    if (event.code === 4000) { // Custom code for auth failure from server
-                        console.error("WebSocket closed due to auth failure:", event.reason);
-                        handleLogout(false); // Don't call API, just update UI
-                        authMessage.textContent = event.reason || "Authentication failed. Please login again.";
-                        showAuthUI();
-                    } else if (currentUsername) { // Only show 'connection died' if user was logged in
-                        console.log(`Connection closed, code=${event.code} reason=${event.reason}`);
-                         if (!event.wasClean) {
-                            console.error('Connection died');
-                            addMessageToChat('server', null, 'Connection died. Attempting to reconnect or refresh.');
-                        }
+                    let reason = event.reason || 'Connection closed';
+                    if(event.code === 1000 && event.reason === "User logged out") { // Normal logout
+                        reason = "You have been logged out.";
+                    } else if(event.code === 1000 && event.reason === "Navigating away") {
+                        reason = "Navigated away from chat.";
+                    } else {
+                         addMessageToChat('server', null, `Disconnected: ${reason} (Code: ${event.code})`);
                     }
-                    socket = null; // Clear the socket variable
+                    console.log(`WebSocket closed: Code=${event.code}, Reason=${reason}, WasClean=${event.wasClean}`);
+
+                    // If not a deliberate close by user action (like logout/back to dash), show error
+                    if (event.code !== 1000) {
+                         authMessage.textContent = `Connection issue: ${reason}. Please login again.`;
+                         handleLogout(false); // Just UI, session might still be valid on server
+                         showAuthUI();
+                    }
+                    socket = null;
                 };
 
                 socket.onerror = function(error) {
-                    statusDisplay.textContent = 'Connection Error';
-                    console.error(`WebSocket Error: ${error.message}`);
-                    addMessageToChat('server', null, `Error: ${error.message || 'Could not connect.'}`);
-                    // Optionally, attempt to logout or show auth UI if connection fails critically
+                    statusDisplay.textContent = 'Connection Error!';
+                    console.error(`WebSocket Error: `, error);
+                    addMessageToChat('server', null, `Error: Could not connect to the chat server.`);
                 };
             }
 
-            function showAuthUI() {
-                authContainer.style.display = 'block';
-                chatWrapper.style.display = 'none';
-                loginForm.style.display = 'block'; // Default to login form
-                registerForm.style.display = 'none';
-                authTitle.textContent = 'Login';
-                authMessage.textContent = '';
+            // --- API Calls & Related Logic (Step 5 & 7) ---
+            async function loadUserRooms() {
+                try {
+                    const response = await fetch('list_my_rooms.php');
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! status: ${response.status}`);
+                    }
+                    const data = await response.json();
+                    roomListUL.innerHTML = ''; // Clear existing list
+                    if (data.success && data.rooms.length > 0) {
+                        data.rooms.forEach(room => {
+                            const li = document.createElement('li');
+                            li.textContent = room.name;
+                            li.dataset.roomId = room.id;
+                            li.dataset.roomName = room.name;
+                            li.dataset.creatorId = room.creator_user_id;
+
+                            const creatorSpan = document.createElement('span');
+                            creatorSpan.className = 'room-creator';
+                            creatorSpan.textContent = `Creator: ${room.creator_username}`;
+                            li.appendChild(creatorSpan);
+
+                            li.addEventListener('click', () => {
+                                showChatUI(currentUsername, room.id, room.name, room.creator_user_id);
+                            });
+                            roomListUL.appendChild(li);
+                        });
+                    } else if (data.success && data.rooms.length === 0) {
+                        roomListUL.innerHTML = '<li>No rooms found. Create one!</li>';
+                    } else {
+                        setDashboardMessage(data.message || 'Could not load rooms.', true);
+                    }
+                } catch (error) {
+                    console.error('Error loading rooms:', error);
+                    setDashboardMessage('Error loading rooms. Check connection.', true);
+                }
             }
 
-            function showChatUI(username) {
-                authContainer.style.display = 'none';
-                chatWrapper.style.display = 'block';
-                connectWebSocket(username);
+            createRoomForm.addEventListener('submit', async function(e) {
+                e.preventDefault();
+                const roomName = newRoomNameInput.value.trim();
+                if (!roomName) {
+                    setDashboardMessage('Room name cannot be empty.', true);
+                    return;
+                }
+                try {
+                    const response = await fetch('create_room.php', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ roomName })
+                    });
+                    const data = await response.json();
+                    if (data.success) {
+                        setDashboardMessage(`Room '${data.roomName}' created!`, false);
+                        newRoomNameInput.value = '';
+                        await loadUserRooms(); // Refresh list
+                    } else {
+                        setDashboardMessage(data.message || 'Failed to create room.', true);
+                    }
+                } catch (error) {
+                    console.error('Error creating room:', error);
+                    setDashboardMessage('Error creating room.', true);
+                }
+            });
+
+            // --- Member Management (Step 7) ---
+            function updateMemberInviteAreaVisibility() {
+                if (currentUserId && currentRoomCreatorId && parseInt(currentUserId) === parseInt(currentRoomCreatorId)) {
+                    memberInviteArea.style.display = 'flex';
+                } else {
+                    memberInviteArea.style.display = 'none';
+                }
             }
 
-            // Check session on load
-            fetch('check_session.php')
-                .then(response => response.json())
-                .then(data => {
-                    if (data.loggedIn && data.username) {
-                        showChatUI(data.username);
+            async function loadRoomMembers() {
+                if (!currentRoomId) return;
+                try {
+                    const response = await fetch(`get_room_members.php?roomId=${currentRoomId}`);
+                    const data = await response.json();
+                    memberListUL.innerHTML = '';
+                    if (data.success && data.members) {
+                        data.members.forEach(member => {
+                            const li = document.createElement('li');
+                            li.textContent = escapeHtml(member.username) + (member.userId === currentUserId ? ' (You)' : '');
+
+                            if (currentUserId === currentRoomCreatorId && member.userId !== currentUserId) {
+                                const removeBtn = document.createElement('button');
+                                removeBtn.className = 'remove-member-btn';
+                                removeBtn.textContent = 'Remove';
+                                removeBtn.dataset.userId = member.userId;
+                                removeBtn.onclick = () => handleRemoveMember(member.userId, member.username);
+                                li.appendChild(removeBtn);
+                            }
+                            memberListUL.appendChild(li);
+                        });
+                    } else {
+                        memberListUL.innerHTML = '<li>Could not load members.</li>';
+                    }
+                } catch (error) {
+                    console.error('Error loading room members:', error);
+                    memberListUL.innerHTML = '<li>Error loading members.</li>';
+                }
+            }
+
+            inviteForm.addEventListener('submit', async function(e) {
+                e.preventDefault();
+                const usernameToInvite = inviteUsernameInput.value.trim();
+                if (!usernameToInvite) {
+                    setMemberInviteMessage('Username to invite cannot be empty.', true);
+                    return;
+                }
+                try {
+                    const response = await fetch('invite_to_room.php', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ roomId: currentRoomId, targetUsername: usernameToInvite })
+                    });
+                    const data = await response.json();
+                    if (data.success) {
+                        setMemberInviteMessage(data.message || `User '${usernameToInvite}' invited.`, false);
+                        inviteUsernameInput.value = '';
+                        await loadRoomMembers(); // Refresh member list
+                    } else {
+                        setMemberInviteMessage(data.message || 'Failed to invite user.', true);
+                    }
+                } catch (error) {
+                    console.error('Error inviting user:', error);
+                    setMemberInviteMessage('Error inviting user.', true);
+                }
+            });
+
+            async function handleRemoveMember(userIdToRemove, usernameToRemove) {
+                if (!confirm(`Are you sure you want to remove ${usernameToRemove} from this room?`)) {
+                    return;
+                }
+                try {
+                    const response = await fetch('remove_from_room.php', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ roomId: currentRoomId, targetUserIdToRemove: userIdToRemove })
+                    });
+                    const data = await response.json();
+                    if (data.success) {
+                        setMemberInviteMessage(data.message || `User '${usernameToRemove}' removed.`, false);
+                        await loadRoomMembers(); // Refresh member list
+                    } else {
+                        setMemberInviteMessage(data.message || 'Failed to remove user.', true);
+                    }
+                } catch (error) {
+                    console.error('Error removing user:', error);
+                    setMemberInviteMessage('Error removing user.', true);
+                }
+            }
+
+
+            // --- Initial Setup & Auth Flow ---
+            async function checkUserSession() {
+                try {
+                    const response = await fetch('check_session.php');
+                    const data = await response.json();
+                    if (data.loggedIn && data.username && data.userId) {
+                        currentUserId = data.userId; // Store logged in user's ID
+                        await showRoomDashboardUI(data.username);
                     } else {
                         showAuthUI();
                     }
-                })
-                .catch(error => {
+                } catch (error) {
                     console.error("Error checking session:", error);
                     showAuthUI();
                     authMessage.textContent = "Error contacting server. Please try again later.";
-                });
+                }
+            }
 
-            // Toggle forms
             showRegisterBtn.addEventListener('click', () => {
                 loginForm.style.display = 'none';
                 registerForm.style.display = 'block';
@@ -252,94 +534,101 @@
                 authMessage.textContent = '';
             });
 
-            // Handle Login
-            loginForm.addEventListener('submit', function(e) {
+            loginForm.addEventListener('submit', async function(e) {
                 e.preventDefault();
                 const username = document.getElementById('login-username').value;
                 const password = document.getElementById('login-password').value;
                 authMessage.textContent = '';
 
-                fetch('login.php', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ username, password })
-                })
-                .then(response => response.json())
-                .then(data => {
-                    if (data.success && data.username) {
-                        showChatUI(data.username);
+                try {
+                    const response = await fetch('login.php', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ username, password })
+                    });
+                    const data = await response.json();
+                    if (data.success && data.username && data.userId) {
+                        currentUserId = data.userId; // Store logged in user's ID
+                        await showRoomDashboardUI(data.username);
                     } else {
                         authMessage.textContent = data.message || 'Login failed.';
                     }
-                })
-                .catch(error => {
+                } catch (error) {
                     console.error("Login error:", error);
                     authMessage.textContent = "Error during login. Please try again.";
-                });
+                }
             });
 
-            // Handle Register
-            registerForm.addEventListener('submit', function(e) {
+            registerForm.addEventListener('submit', async function(e) {
                 e.preventDefault();
                 const username = document.getElementById('register-username').value;
                 const password = document.getElementById('register-password').value;
                 authMessage.textContent = '';
 
-                fetch('register.php', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ username, password })
-                })
-                .then(response => response.json())
-                .then(data => {
+                try {
+                    const response = await fetch('register.php', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ username, password })
+                    });
+                    const data = await response.json();
                     if (data.success) {
-                        authMessage.textContent = data.message + " Please login.";
-                        showLoginBtn.click(); // Switch to login form
+                        authMessage.textContent = (data.message || "Registration successful.") + " Please login.";
+                        showLoginBtn.click();
                     } else {
                         authMessage.textContent = data.message || 'Registration failed.';
                     }
-                })
-                .catch(error => {
+                } catch (error) {
                     console.error("Registration error:", error);
                     authMessage.textContent = "Error during registration. Please try again.";
-                });
+                }
             });
 
-            // Handle Logout
+            backToDashboardButton.addEventListener('click', async () => {
+                if (socket) {
+                    socket.close(1000, "Navigating away");
+                    socket = null;
+                }
+                currentRoomId = null;
+                currentRoomCreatorId = null;
+                memberInviteArea.style.display = 'none'; // Hide member area
+                await showRoomDashboardUI(currentUsername);
+            });
+
             async function handleLogout(callApi = true) {
                 if (callApi) {
                     try {
-                        const response = await fetch('logout.php', { method: 'POST' });
-                        const data = await response.json();
-                        console.log(data.message);
+                        await fetch('logout.php', { method: 'POST' });
                     } catch (error) {
                         console.error("Logout API call failed:", error);
                     }
                 }
 
                 if (socket) {
-                    socket.close(1000, "User logged out"); // 1000 is normal closure
+                    socket.close(1000, "User logged out");
                     socket = null;
                 }
                 currentUsername = null;
-                chatOutput.innerHTML = ''; // Clear chat messages
+                currentUserId = null;
+                currentRoomId = null;
+                currentRoomCreatorId = null;
+                chatOutput.innerHTML = '';
+                memberListUL.innerHTML = '';
+                roomListUL.innerHTML = '';
                 showAuthUI();
-                document.getElementById('login-username').value = '';
+                document.getElementById('login-username').value = ''; // Clear login form
                 document.getElementById('login-password').value = '';
             }
 
             logoutButton.addEventListener('click', () => handleLogout());
 
-            // Send message
             sendButton.onclick = function() {
                 const message = messageInput.value;
                 if (message.trim() !== '' && socket && socket.readyState === WebSocket.OPEN) {
-                    socket.send(message);
-                    // Add own message to chat immediately for responsiveness (optional, server will echo it back)
-                    // addMessageToChat('user', currentUsername, message, true);
+                    socket.send(message); // Server now expects plain text for msg
                     messageInput.value = '';
                 } else if (!socket || socket.readyState !== WebSocket.OPEN) {
-                    addMessageToChat('server', null, "Not connected. Please wait or try logging in again.");
+                    addMessageToChat('server', null, "Not connected. Please select a room or try logging in again.");
                 }
             };
 
@@ -348,6 +637,9 @@
                     sendButton.click();
                 }
             });
+
+            // Initial Load
+            checkUserSession();
         });
     </script>
 </body>
