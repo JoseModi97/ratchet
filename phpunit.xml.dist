@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<phpunit xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:noNamespaceSchemaLocation="https://schema.phpunit.de/9.5/phpunit.xsd"
+         bootstrap="tests/bootstrap.php"
+         colors="true"
+         verbose="true">
+
+    <testsuites>
+        <testsuite name="Application Test Suite">
+            <directory suffix="Test.php">tests/Unit</directory>
+            <directory suffix="Test.php">tests/Integration</directory>
+            <!-- <directory suffix="Test.php">tests/E2E</directory> -->
+        </testsuite>
+    </testsuites>
+
+    <coverage processUncoveredFiles="true">
+        <include>
+            <directory suffix=".php">src</directory>
+        </include>
+        <exclude>
+            <directory>src/vendor</directory>
+        </exclude>
+        <report>
+            <clover outputFile="coverage.xml"/>
+            <html outputDirectory="html-coverage"/>
+            <text outputFile="php://stdout" showUncoveredFiles="false" showOnlySummary="true"/>
+        </report>
+    </coverage>
+
+    <php>
+        <!-- Environment variables for tests -->
+        <!-- Example: <env name="APP_ENV" value="testing"/> -->
+        <!-- Example: <env name="DB_DATABASE" value="chat_app_test"/> -->
+    </php>
+
+    <logging>
+        <!-- <log type="junit" target="build/logs/junit.xml"/> -->
+    </logging>
+
+</phpunit>
