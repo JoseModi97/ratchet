@@ -4,7 +4,7 @@ require dirname(__DIR__) . '/vendor/autoload.php';
 use MyApp\Db;
 
 header('Content-Type: application/json');
-header('Access-Control-Allow-Origin: *'); // For development
+header('Access-Control-Allow-Origin: https://your-chat-app-domain.com'); // TODO: Replace with your actual frontend domain
 header('Access-Control-Allow-Methods: GET, OPTIONS');
 header('Access-Control-Allow-Headers: Content-Type, Authorization');
 

@@ -10,15 +10,24 @@ class Chat implements MessageComponentInterface {
     protected $pdo;
     // For managing clients per room: [roomId => SplObjectStorage of connections]
     protected $roomClients;
+    protected $messageTimestamps; // For rate limiting: [resourceId => [timestamp1, timestamp2, ...]]
+
+    // Rate limiting parameters
+    private const MAX_MESSAGES = 10; // Max messages allowed
+    private const TIME_WINDOW = 5;  // In seconds (e.g., 10 messages per 5 seconds)
 
     public function __construct(\PDO $pdo) {
         $this->clients = new \SplObjectStorage;
         $this->pdo = $pdo;
         $this->roomClients = []; // Initialize roomClients
+        $this->messageTimestamps = []; // Initialize message timestamps store
         echo "Chat server started with DB connection...\n";
     }
 
     public function onOpen(ConnectionInterface $conn) {
+        // Initialize message timestamps for new connection
+        $this->messageTimestamps[$conn->resourceId] = [];
+
         // Extract token from query parameter
         $queryParams = [];
         parse_str($conn->httpRequest->getUri()->getQuery(), $queryParams);
@@ -185,6 +194,32 @@ class Chat implements MessageComponentInterface {
                         return;
                     }
 
+                    // --- Rate Limiting Logic ---
+                    $currentTime = time();
+                    $connId = $from->resourceId;
+
+                    // Remove timestamps older than the time window
+                    $this->messageTimestamps[$connId] = array_filter(
+                        $this->messageTimestamps[$connId],
+                        function ($timestamp) use ($currentTime) {
+                            return ($currentTime - $timestamp) < self::TIME_WINDOW;
+                        }
+                    );
+
+                    // Check if message count exceeds limit
+                    if (count($this->messageTimestamps[$connId]) >= self::MAX_MESSAGES) {
+                        $from->send(json_encode([
+                            'type' => 'error',
+                            'roomId' => $roomId,
+                            'message' => 'You are sending messages too quickly. Please wait a moment.'
+                        ]));
+                        echo "User {$username} (Conn {$connId}) rate limited in room {$roomId}.\n";
+                        return; // Stop processing this message
+                    }
+                    // Add current message timestamp
+                    $this->messageTimestamps[$connId][] = $currentTime;
+                    // --- End Rate Limiting Logic ---
+
                     // Save to messages table
                     $stmt = $this->pdo->prepare("INSERT INTO messages (room_id, user_id, content, created_at) VALUES (:room_id, :user_id, :content, NOW())");
                     $stmt->execute([
@@ -239,8 +274,10 @@ class Chat implements MessageComponentInterface {
             // Remove from global client list
             $this->clients->detach($conn);
 
-            // Remove from all room subscriptions (logic to be added in Step 11/12)
-            // This requires iterating through $this->roomClients and detaching $conn
+            // Clean up message timestamps for the disconnected client
+            unset($this->messageTimestamps[$conn->resourceId]);
+
+            // Remove from all room subscriptions
             foreach ($this->roomClients as $roomId => $roomConnections) {
                 if ($roomConnections->contains($conn)) {
                     $roomConnections->detach($conn);

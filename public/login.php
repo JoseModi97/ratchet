@@ -4,8 +4,8 @@ require dirname(__DIR__) . '/vendor/autoload.php';
 use MyApp\Db;
 
 header('Content-Type: application/json');
-// Allow POST requests from any origin (for development convenience)
-header('Access-Control-Allow-Origin: *');
+// Allow POST requests from a specific origin in production
+header('Access-Control-Allow-Origin: https://your-chat-app-domain.com'); // TODO: Replace with your actual frontend domain
 header('Access-Control-Allow-Methods: POST, OPTIONS');
 header('Access-Control-Allow-Headers: Content-Type, Authorization'); // Allow Authorization for future use if needed here
 
@@ -20,6 +20,30 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     echo json_encode(['error' => 'Only POST method is allowed.']);
     exit;
 }
+
+// --- Conceptual Rate Limiting Placeholder ---
+// In a production environment, implement robust rate limiting here.
+// Example using a session or a more advanced method (e.g., Redis, Memcached, Fail2ban integration):
+// session_start(); // If using sessions
+// $ipAddress = $_SERVER['REMOTE_ADDR'];
+// $maxRequests = 10; // Max requests
+// $timeWindow = 60;  // Seconds (e.g., 10 requests per minute)
+//
+// // Example: $_SESSION['login_attempts'][$ipAddress] = ['count' => X, 'timestamp' => Y];
+// // if (isset($_SESSION['login_attempts'][$ipAddress]) &&
+// //     $_SESSION['login_attempts'][$ipAddress]['timestamp'] > (time() - $timeWindow) &&
+// //     $_SESSION['login_attempts'][$ipAddress]['count'] >= $maxRequests) {
+// //     http_response_code(429); // Too Many Requests
+// //     echo json_encode(['error' => 'Too many login attempts. Please try again later.']);
+// //     exit;
+// // }
+// // // Update attempt counter
+// // if (!isset($_SESSION['login_attempts'][$ipAddress]) || $_SESSION['login_attempts'][$ipAddress]['timestamp'] < (time() - $timeWindow)) {
+// //     $_SESSION['login_attempts'][$ipAddress] = ['count' => 1, 'timestamp' => time()];
+// // } else {
+// //     $_SESSION['login_attempts'][$ipAddress]['count']++;
+// // }
+// --- End Conceptual Rate Limiting Placeholder ---
 
 $input = json_decode(file_get_contents('php://input'), true);
 

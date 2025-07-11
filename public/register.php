@@ -5,9 +5,8 @@ use MyApp\Db;
 
 header('Content-Type: application/json');
 
-// Allow POST requests from any origin (for development convenience)
-// In production, restrict this to your frontend's origin
-header('Access-Control-Allow-Origin: *');
+// Allow POST requests from a specific origin in production
+header('Access-Control-Allow-Origin: https://your-chat-app-domain.com'); // TODO: Replace with your actual frontend domain
 header('Access-Control-Allow-Methods: POST, OPTIONS');
 header('Access-Control-Allow-Headers: Content-Type');
 
@@ -22,6 +21,20 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     echo json_encode(['error' => 'Only POST method is allowed.']);
     exit;
 }
+
+// --- Conceptual Rate Limiting Placeholder ---
+// Similar to login.php, implement rate limiting for registration attempts per IP.
+// session_start(); // If using sessions
+// $ipAddress = $_SERVER['REMOTE_ADDR'];
+// $maxRequests = 5;  // Max registration attempts
+// $timeWindow = 3600; // Seconds (e.g., 5 attempts per hour)
+//
+// // Check and update $_SESSION['register_attempts'][$ipAddress]
+// // If limit exceeded:
+// // http_response_code(429);
+// // echo json_encode(['error' => 'Too many registration attempts. Please try again later.']);
+// // exit;
+// --- End Conceptual Rate Limiting Placeholder ---
 
 $input = json_decode(file_get_contents('php://input'), true);
 

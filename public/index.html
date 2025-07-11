@@ -106,8 +106,8 @@
     </div>
 
     <script>
-        // API Base URL (assuming PHP files are in the same directory or handled by server rewrite)
-        const API_URL = ''; // e.g., '/api' if you have routing, or just '' for same dir
+        // API Base URL - dynamically determined
+        const API_URL = window.location.origin + '/'; // Assumes PHP files are at the root relative to the domain
 
         // DOM Elements
         const loginView = document.getElementById('login-view');
@@ -222,13 +222,31 @@
             }
         });
 
-        logoutButton.addEventListener('click', () => {
+        logoutButton.addEventListener('click', async () => {
+            const oldToken = currentUser ? currentUser.token : null;
+
+            // Clear local state immediately for responsiveness
             currentUser = null;
             localStorage.removeItem('chatUser');
-            if (websocket) websocket.close();
+            if (websocket && websocket.readyState === WebSocket.OPEN) {
+                websocket.close(1000, "User logged out");
+            }
+            websocket = null; // Ensure websocket object is cleared
             chatAreaContainer.classList.add('hidden');
             currentRoomId = null;
-            showView('login-view');
+            showView('login-view'); // Switch view immediately
+
+            if (oldToken) {
+                try {
+                    // Attempt to invalidate token on the server
+                    const data = await apiCall('logout.php', 'POST', {}, oldToken);
+                    console.log('Logout API response:', data.message);
+                } catch (error) {
+                    console.error('Logout API call failed:', error.message);
+                    // Client-side logout has already occurred, so this is mostly for logging
+                    // or if specific UI feedback for failed server logout is needed.
+                }
+            }
         });
 
         document.getElementById('show-register-link').addEventListener('click', (e) => {
@@ -379,7 +397,18 @@
                 return;
             }
 
-            const wsUrl = `ws://localhost:8080?token=${currentUser.token}`;
+            let wsProtocol = window.location.protocol === 'https:' ? 'wss://' : 'ws://';
+            // For local development with ws, we might use a specific port like 8080.
+            // For wss in production, it's typically port 443, often handled by a reverse proxy without needing to specify the port in the URL.
+            let wsHost = window.location.hostname;
+            let wsPort = (wsProtocol === 'ws://' && wsHost === 'localhost') ? ':8080' : ''; // Keep :8080 for local ws://localhost
+            // If you have a specific secure WebSocket port different from 443 that's not handled by a reverse proxy, adjust here.
+            // For example, if your secure WebSocket is on localhost:8081, you might do:
+            // if (wsProtocol === 'wss://' && wsHost === 'localhost') wsPort = ':8081';
+
+
+            const wsUrl = `${wsProtocol}${wsHost}${wsPort}?token=${currentUser.token}`;
+            console.log("Attempting WebSocket connection to:", wsUrl); // For debugging
             websocket = new WebSocket(wsUrl);
             chatStatusDiv.textContent = `Connecting to room ${chatRoomNameH3.textContent}...`;
 
