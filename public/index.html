@@ -66,7 +66,8 @@
         #member-list .remove-member-btn { background: none; border: none; color: #dc3545; cursor: pointer; font-size: 0.8em; padding: 2px 5px;}
         #member-list .remove-member-btn:hover { text-decoration: underline; }
 
-        #invite-form input[type="text"] { width: calc(100% - 18px); padding: 6px; margin-bottom: 8px; border: 1px solid #ccc; border-radius: 3px; font-size: 0.9em;}
+        /* #invite-form input[type="text"] { width: calc(100% - 18px); padding: 6px; margin-bottom: 8px; border: 1px solid #ccc; border-radius: 3px; font-size: 0.9em;} */ /* Replaced by select */
+        #invite-form select#invite-user-select { /* Style already applied inline, but can be centralized here */ }
         #invite-form button { width: 100%; padding: 6px; background-color: #17a2b8; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 0.9em;}
         #invite-form button:hover { background-color: #138496; }
         #member-invite-message { font-size: 0.8em; color: green; margin-top: 5px; min-height: 1em;}
@@ -138,7 +139,9 @@
                     <div id="member-invite-message"></div>
                     <form id="invite-form">
                         <h4>Invite User</h4>
-                        <input type="text" id="invite-username" placeholder="Username to invite" required>
+                        <select id="invite-user-select" required style="width: 100%; padding: 6px; margin-bottom: 8px; border: 1px solid #ccc; border-radius: 3px; font-size: 0.9em; background-color: white;">
+                            <option value="">Select user to invite...</option>
+                        </select>
                         <button type="submit">Invite</button>
                     </form>
                 </div>
@@ -183,7 +186,7 @@
             const memberInviteArea = document.getElementById('member-invite-area');
             const memberListUL = document.getElementById('member-list');
             const inviteForm = document.getElementById('invite-form');
-            const inviteUsernameInput = document.getElementById('invite-username');
+            const inviteUserSelect = document.getElementById('invite-user-select'); // Changed from inviteUsernameInput
             const memberInviteMessage = document.getElementById('member-invite-message');
 
 
@@ -278,6 +281,7 @@
                 updateMemberInviteAreaVisibility(); // Show/hide based on creator status
                 if (memberInviteArea.style.display !== 'none') {
                     loadRoomMembers();
+                    loadInviteCandidates(currentRoomId); // Load candidates when chat UI is shown and invite area is visible
                 }
             }
 
@@ -416,8 +420,40 @@
             function updateMemberInviteAreaVisibility() {
                 if (currentUserId && currentRoomCreatorId && parseInt(currentUserId) === parseInt(currentRoomCreatorId)) {
                     memberInviteArea.style.display = 'flex';
+                    loadInviteCandidates(currentRoomId); // Load candidates when area becomes visible
                 } else {
                     memberInviteArea.style.display = 'none';
+                }
+            }
+
+            async function loadInviteCandidates(roomId) {
+                if (!roomId) return;
+                try {
+                    const response = await fetch(`list_invite_candidates.php?roomId=${roomId}`);
+                    const data = await response.json();
+                    inviteUserSelect.innerHTML = '<option value="">Select user to invite...</option>'; // Clear and add default
+                    if (data.success && data.users) {
+                        if (data.users.length === 0) {
+                            const option = document.createElement('option');
+                            option.value = "";
+                            option.textContent = "No new users to invite";
+                            option.disabled = true;
+                            inviteUserSelect.appendChild(option);
+                        } else {
+                            data.users.forEach(user => {
+                                const option = document.createElement('option');
+                                option.value = user.username; // API `invite_to_room.php` expects username
+                                option.textContent = escapeHtml(user.username);
+                                inviteUserSelect.appendChild(option);
+                            });
+                        }
+                    } else {
+                        setMemberInviteMessage(data.message || 'Could not load invite candidates.', true);
+                    }
+                } catch (error) {
+                    console.error('Error loading invite candidates:', error);
+                    setMemberInviteMessage('Error loading invite candidates.', true);
+                    inviteUserSelect.innerHTML = '<option value="">Error loading users</option>';
                 }
             }
 
@@ -453,22 +489,23 @@
 
             inviteForm.addEventListener('submit', async function(e) {
                 e.preventDefault();
-                const usernameToInvite = inviteUsernameInput.value.trim();
-                if (!usernameToInvite) {
-                    setMemberInviteMessage('Username to invite cannot be empty.', true);
+                const selectedUsername = inviteUserSelect.value;
+                if (!selectedUsername) {
+                    setMemberInviteMessage('Please select a user to invite.', true);
                     return;
                 }
                 try {
                     const response = await fetch('invite_to_room.php', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ roomId: currentRoomId, targetUsername: usernameToInvite })
+                        body: JSON.stringify({ roomId: currentRoomId, targetUsername: selectedUsername })
                     });
                     const data = await response.json();
                     if (data.success) {
-                        setMemberInviteMessage(data.message || `User '${usernameToInvite}' invited.`, false);
-                        inviteUsernameInput.value = '';
-                        await loadRoomMembers(); // Refresh member list
+                        setMemberInviteMessage(data.message || `User '${selectedUsername}' invited.`, false);
+                        // inviteUserSelect.value = ''; // Reset select - done by loadInviteCandidates
+                        await loadRoomMembers();      // Refresh member list
+                        await loadInviteCandidates(currentRoomId); // Refresh invite candidates
                     } else {
                         setMemberInviteMessage(data.message || 'Failed to invite user.', true);
                     }
@@ -592,6 +629,7 @@
                 currentRoomId = null;
                 currentRoomCreatorId = null;
                 memberInviteArea.style.display = 'none'; // Hide member area
+                inviteUserSelect.innerHTML = '<option value="">Select user to invite...</option>'; // Clear invite select
                 await showRoomDashboardUI(currentUsername);
             });
 
