@@ -46,8 +46,11 @@
 
         #chat-content-wrapper { display: flex; flex-grow: 1; overflow: hidden; }
 
-        #chat-container { flex-grow: 1; display: flex; flex-direction: column; overflow: hidden; }
-        #chat-output { height: 300px; /* Adjusted for member list */ overflow-y: auto; padding: 15px; border-bottom: 1px solid #eee; flex-grow: 1;}
+        #chat-container { flex-grow: 1; display: flex; flex-direction: column; overflow: hidden; position: relative; /* For load more button */ }
+        #load-more-messages { display: none; /* Hidden by default */ width: auto; margin: 10px auto 0px auto; padding: 8px 15px; background-color: #6c757d; color: white; border: none; border-radius: 4px; cursor: pointer; text-align: center;}
+        #load-more-messages:hover { background-color: #5a6268; }
+
+        #chat-output { /* height: 300px; Adjusted for member list */ overflow-y: auto; padding: 15px; border-bottom: 1px solid #eee; flex-grow: 1;}
         .message { margin-bottom: 12px; line-height: 1.4; }
         .message .sender { font-weight: bold; color: #007bff; }
         .message .text { margin-left: 8px; color: #333; word-wrap: break-word; }
@@ -127,6 +130,7 @@
             <div id="status">Connecting...</div>
             <div id="chat-content-wrapper">
                 <div id="chat-container">
+                    <button id="load-more-messages">Load More Messages</button>
                     <div id="chat-output"></div>
                     <div id="input-area">
                         <input type="text" id="message-input" placeholder="Type your message...">
@@ -178,9 +182,11 @@
             const currentRoomDisplay = document.getElementById('current-room-display');
             const backToDashboardButton = document.getElementById('back-to-dashboard');
             const statusDisplay = document.getElementById('status');
-            const chatOutput = document.getElementById('chat-output');
+            const chatOutput = document.getElementById('chat-output'); // This is the scrollable message area
             const messageInput = document.getElementById('message-input');
             const sendButton = document.getElementById('send-button');
+            const loadMoreMessagesButton = document.getElementById('load-more-messages');
+
 
             // UI Elements - Member/Invite Area
             const memberInviteArea = document.getElementById('member-invite-area');
@@ -195,6 +201,8 @@
             let currentUserId = null;
             let currentRoomId = null;
             let currentRoomCreatorId = null;
+            let oldestMessageIdLoaded = null; // Track the oldest message ID loaded for pagination
+            let isLoadingHistory = false; // Flag to prevent multiple history loads
 
             function escapeHtml(unsafe) {
                 return unsafe
@@ -205,27 +213,53 @@
                      .replace(/'/g, "&#039;");
             }
 
-            function addMessageToChat(type, sender, text, isMe = false) {
+            function addMessageToChat(data, isHistory = false) {
+                // data expected for history: { id, senderUsername, content, messageType, sentAt, userId (sender's ID) }
+                // data expected for live WebSocket: { type: 'message'/'server_message'/'error', sender: '...', text: '...' }
+
                 const messageDiv = document.createElement('div');
                 messageDiv.classList.add('message');
+                if (data.id) { // History messages will have an ID
+                    messageDiv.dataset.messageId = data.id;
+                }
 
-                if (type === 'server') {
+                let SENDER_TEXT = data.senderUsername || data.sender;
+                let CONTENT_TEXT = data.content || data.text;
+                let MESSAGE_TYPE = data.messageType || data.type;
+
+                const isMe = SENDER_TEXT === currentUsername;
+
+                if (MESSAGE_TYPE === 'server_message' || MESSAGE_TYPE === 'error') {
                     messageDiv.classList.add('server-message');
-                    messageDiv.textContent = escapeHtml(text);
-                } else {
+                    messageDiv.textContent = escapeHtml(CONTENT_TEXT);
+                } else if (MESSAGE_TYPE === 'system_join' || MESSAGE_TYPE === 'system_leave') {
+                    messageDiv.classList.add('server-message');
+                    try {
+                        // Assuming system message content is JSON like: {"username": "User", "action": "join/leave", "text": "User X has joined/left..."}
+                        const parsedContent = JSON.parse(CONTENT_TEXT);
+                        messageDiv.textContent = escapeHtml(parsedContent.text || CONTENT_TEXT); // Use parsed text if available
+                    } catch (e) {
+                        messageDiv.textContent = escapeHtml(CONTENT_TEXT); // Fallback if content is not JSON or no 'text' field
+                    }
+                } else { // Regular user text messages
                     const senderSpan = document.createElement('span');
                     senderSpan.classList.add('sender');
-                    senderSpan.textContent = escapeHtml(sender) + (isMe ? " (Me)" : "") + ": ";
+                    senderSpan.textContent = escapeHtml(SENDER_TEXT) + (isMe ? " (Me)" : "") + ": ";
 
                     const textSpan = document.createElement('span');
                     textSpan.classList.add('text');
-                    textSpan.textContent = escapeHtml(text);
+                    textSpan.textContent = escapeHtml(CONTENT_TEXT);
 
                     messageDiv.appendChild(senderSpan);
                     messageDiv.appendChild(textSpan);
                 }
-                chatOutput.appendChild(messageDiv);
-                chatOutput.scrollTop = chatOutput.scrollHeight;
+
+                if (isHistory) {
+                    chatOutput.insertBefore(messageDiv, chatOutput.firstChild); // Prepend for history
+                } else {
+                    chatOutput.appendChild(messageDiv); // Append for live messages
+                    chatOutput.scrollTop = chatOutput.scrollHeight; // Auto-scroll for new messages
+                }
             }
 
             function setDashboardMessage(message, isError = false) {
@@ -263,25 +297,32 @@
                 await loadUserRooms();
             }
 
-            function showChatUI(username, roomId, roomName, roomCreatorId) {
-                currentUsername = username; // Should already be set
+            async function showChatUI(username, roomId, roomName, roomCreatorId) {
+                currentUsername = username;
                 currentRoomId = roomId;
                 currentRoomCreatorId = roomCreatorId;
+                oldestMessageIdLoaded = null;
+                isLoadingHistory = false;
+                chatOutput.innerHTML = ''; // Clear previous room's messages
+                loadMoreMessagesButton.style.display = 'none'; // Hide load more button for new room initially
 
                 authContainer.style.display = 'none';
                 roomDashboard.style.display = 'none';
-                chatWrapper.style.display = 'flex'; // Changed to flex for layout
-                mainHeaderBar.style.display = 'flex'; // Ensure header is visible
+                chatWrapper.style.display = 'flex';
+                mainHeaderBar.style.display = 'flex';
 
                 currentRoomDisplay.textContent = `Room: ${escapeHtml(roomName)}`;
-                chatOutput.innerHTML = ''; // Clear previous messages
-                statusDisplay.textContent = 'Connecting...';
+                statusDisplay.textContent = 'Loading history...';
 
+                await loadMessageHistory(roomId); // Initial load of messages
+
+                statusDisplay.textContent = 'Connecting to chat...'; // Update status before WebSocket connect
                 connectWebSocket(username, roomId);
-                updateMemberInviteAreaVisibility(); // Show/hide based on creator status
+                updateMemberInviteAreaVisibility();
                 if (memberInviteArea.style.display !== 'none') {
-                    loadRoomMembers();
-                    loadInviteCandidates(currentRoomId); // Load candidates when chat UI is shown and invite area is visible
+                    // loadRoomMembers and loadInviteCandidates are called within updateMemberInviteAreaVisibility if needed
+                    // or can be called here again if a specific order is required after WebSocket connection.
+                    // For now, updateMemberInviteAreaVisibility handles it.
                 }
             }
 
@@ -297,48 +338,52 @@
                 socket.onopen = function(e) {
                     statusDisplay.textContent = 'Connected';
                     console.log(`Connection established to room ${roomId}!`);
-                    addMessageToChat('server', null, `Connected to room '${currentRoomDisplay.textContent.replace("Room: ","")}'.`);
+                    // Server join messages are now stored, so history will show them.
+                    // Client-only confirmation for WebSocket connection:
+                    addMessageToChat({type: 'server_message', text: `WebSocket connected to room '${escapeHtml(currentRoomDisplay.textContent.replace("Room: ",""))}'.`});
                 };
 
                 socket.onmessage = function(event) {
                     console.log(`Data received from server: ${event.data}`);
                     try {
                         const data = JSON.parse(event.data);
-                        if (data.type === 'message' && data.sender && data.text) {
-                             addMessageToChat('user', data.sender, data.text, data.sender === currentUsername);
-                        } else if (data.type === 'server_message' && data.text) {
-                            addMessageToChat('server', null, data.text);
-                             // If a join/leave message, refresh member list if user is creator
-                            if ((data.text.includes('has joined') || data.text.includes('has left')) && currentUserId === currentRoomCreatorId) {
+                        // Expecting live messages to have: { type, sender, text, roomId }
+                        // System messages from server (like join/leave if not handled by history) might be 'server_message'
+                        addMessageToChat(data); // Let addMessageToChat handle different types
+
+                        // If a join/leave type of server_message, and current user is creator, refresh member list
+                        // This is now primarily handled by history, but can be a fallback or for immediate updates.
+                        // The Chat.php currently sends simple text for join/leave broadcasts.
+                        if (data.type === 'server_message' && (data.text.includes('has joined') || data.text.includes('has left'))) {
+                            if (parseInt(currentUserId) === parseInt(currentRoomCreatorId)) {
                                 loadRoomMembers();
+                                loadInviteCandidates(currentRoomId); // Also refresh candidates
                             }
-                        } else if (data.type === 'error' && data.text) {
-                            addMessageToChat('server', null, `Server Error: ${data.text}`);
-                        } else {
-                            addMessageToChat('server', null, event.data); // Fallback
                         }
                     } catch (error) {
-                        console.warn("Received non-JSON message or malformed JSON:", event.data, error);
-                        addMessageToChat('server', null, event.data);
+                        console.warn("Received non-JSON message or malformed JSON from WebSocket:", event.data, error);
+                        addMessageToChat({type: 'server_message', text: event.data}); // Display as plain server message
                     }
                 };
 
                 socket.onclose = function(event) {
                     statusDisplay.textContent = 'Disconnected';
                     let reason = event.reason || 'Connection closed';
-                    if(event.code === 1000 && event.reason === "User logged out") { // Normal logout
-                        reason = "You have been logged out.";
+                    if(event.code === 1000 && event.reason === "User logged out") {
+                        reason = "You have been logged out."; // No chat message needed, handled by logout UI change
                     } else if(event.code === 1000 && event.reason === "Navigating away") {
-                        reason = "Navigated away from chat.";
+                        reason = "Navigated away from chat."; // No chat message needed
                     } else {
-                         addMessageToChat('server', null, `Disconnected: ${reason} (Code: ${event.code})`);
+                        // For other closures, display the message in chat
+                        addMessageToChat({type: 'server_message', text: `Disconnected: ${reason} (Code: ${event.code})`});
                     }
                     console.log(`WebSocket closed: Code=${event.code}, Reason=${reason}, WasClean=${event.wasClean}`);
 
-                    // If not a deliberate close by user action (like logout/back to dash), show error
-                    if (event.code !== 1000) {
-                         authMessage.textContent = `Connection issue: ${reason}. Please login again.`;
-                         handleLogout(false); // Just UI, session might still be valid on server
+                     // If not a deliberate clean closure initiated by client's UI actions (logout/navigating away)
+                    if (!(event.code === 1000 && (event.reason === "User logged out" || event.reason === "Navigating away"))) {
+                         authMessage.textContent = `Connection issue: ${reason}. Please login or select a room again.`;
+                         // Transition to a state where user can re-initiate. Forcing full logout might be too much if session is fine.
+                         // For now, simplest is to go to auth UI.
                          showAuthUI();
                     }
                     socket = null;
@@ -352,6 +397,88 @@
             }
 
             // --- API Calls & Related Logic (Step 5 & 7) ---
+
+            async function loadMessageHistory(roomId, loadOlder = false) {
+                if (isLoadingHistory) return;
+                if (loadOlder && oldestMessageIdLoaded === -1) { // -1 signifies no more messages
+                    loadMoreMessagesButton.style.display = 'none'; // Should already be hidden but ensure
+                    return;
+                }
+
+                isLoadingHistory = true;
+                loadMoreMessagesButton.textContent = 'Loading...';
+                loadMoreMessagesButton.disabled = true;
+                if(!loadOlder) loadMoreMessagesButton.style.display = 'none'; // Hide unless it's a "load older" specific request initially
+
+                let queryParams = `roomId=${roomId}&limit=20`; // Fetch 20 messages at a time
+                if (loadOlder && oldestMessageIdLoaded) {
+                    queryParams += `&before_message_id=${oldestMessageIdLoaded}`;
+                }
+
+                try {
+                    const response = await fetch(`get_room_messages.php?${queryParams}`);
+                    const data = await response.json();
+
+                    if (data.success && data.messages) {
+                        if (data.messages.length > 0) {
+                            const oldScrollHeight = chatOutput.scrollHeight;
+                            const firstCurrentlyVisibleMessage = chatOutput.firstChild;
+
+                            data.messages.forEach(msg => {
+                                // API returns { id, roomId, userId, senderUsername, messageType, content, metadata, sentAt }
+                                addMessageToChat(msg, true); // true for isHistory (prepend)
+                            });
+
+                            oldestMessageIdLoaded = data.messages[0].id; // First message in (originally reversed by API) array is oldest of this batch
+
+                            if (loadOlder) {
+                                // Try to maintain scroll position relative to the old top message
+                                if(firstCurrentlyVisibleMessage) {
+                                   chatOutput.scrollTop = firstCurrentlyVisibleMessage.offsetTop - chatOutput.offsetTop;
+                                } else {
+                                   chatOutput.scrollTop = chatOutput.scrollHeight - oldScrollHeight;
+                                }
+                            } else {
+                                // Scroll to bottom for initial load
+                                chatOutput.scrollTop = chatOutput.scrollHeight;
+                            }
+
+                            // Show "Load More" button only if we received a full batch of messages
+                            if (data.messages.length >= 20) {
+                                loadMoreMessagesButton.style.display = 'block';
+                            } else {
+                                loadMoreMessagesButton.style.display = 'none';
+                                oldestMessageIdLoaded = -1; // Mark that we've reached the end
+                            }
+                        } else { // No messages returned
+                            if (loadOlder) {
+                                addMessageToChat({type: 'server', text: "No more messages to load."}, true);
+                            } else {
+                                // Initial load and no messages in room yet
+                                addMessageToChat({type: 'server', text: "No messages in this room yet. Start the conversation!"});
+                            }
+                            loadMoreMessagesButton.style.display = 'none';
+                            oldestMessageIdLoaded = -1;
+                        }
+                    } else {
+                        addMessageToChat({type: 'server', text: data.message || "Could not load message history."}, loadOlder);
+                        if(loadOlder) loadMoreMessagesButton.style.display = 'block'; // Allow retry if it was a "load older" attempt
+                    }
+                } catch (error) {
+                    console.error("Error loading message history:", error);
+                    addMessageToChat({type: 'server', text: "Error loading message history."}, loadOlder);
+                     if(loadOlder) loadMoreMessagesButton.style.display = 'block'; // Allow retry
+                } finally {
+                    isLoadingHistory = false;
+                    loadMoreMessagesButton.textContent = 'Load More Messages';
+                    loadMoreMessagesButton.disabled = false;
+                    // If initial load and no messages, ensure button is hidden
+                    if (!loadOlder && oldestMessageIdLoaded === -1) {
+                        loadMoreMessagesButton.style.display = 'none';
+                    }
+                }
+            }
+
             async function loadUserRooms() {
                 try {
                     const response = await fetch('list_my_rooms.php');
@@ -669,6 +796,20 @@
                     addMessageToChat('server', null, "Not connected. Please select a room or try logging in again.");
                 }
             };
+
+            loadMoreMessagesButton.addEventListener('click', () => {
+                if (currentRoomId && !isLoadingHistory) { // Ensure not already loading
+                    loadMessageHistory(currentRoomId, true);
+                }
+            });
+
+            chatOutput.addEventListener('scroll', () => {
+                // Load more when scrolled to the top and button is visible (meaning more might be available)
+                if (chatOutput.scrollTop === 0 && !isLoadingHistory && oldestMessageIdLoaded !== -1 && loadMoreMessagesButton.style.display === 'block') {
+                    console.log("Scrolled to top, loading more messages...");
+                    loadMessageHistory(currentRoomId, true);
+                }
+            });
 
             messageInput.addEventListener('keypress', function(e) {
                 if (e.key === 'Enter') {

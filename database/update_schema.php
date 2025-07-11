@@ -30,6 +30,22 @@ try {
     ");
     echo "Table 'chat_room_members' created successfully or already exists.\n";
 
+    // Create chat_messages table
+    $pdo->exec("
+        CREATE TABLE IF NOT EXISTS chat_messages (
+            id BIGINT AUTO_INCREMENT PRIMARY KEY,
+            room_id INT NOT NULL,
+            user_id INT NOT NULL,
+            message_type VARCHAR(30) NOT NULL DEFAULT 'text',
+            content TEXT NOT NULL,
+            metadata JSON DEFAULT NULL,
+            sent_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (room_id) REFERENCES chat_rooms(id) ON DELETE CASCADE,
+            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+    ");
+    echo "Table 'chat_messages' created successfully or already exists.\n";
+
     echo "Schema update complete.\n";
 
 } catch (PDOException $e) {

@@ -175,62 +175,114 @@ class Chat implements MessageComponentInterface {
         $conn->roomId = $roomId;
 
         $roomName = $this->getRoomName($roomId) ?? "ID {$roomId}";
+        $joinText = "User '{$username}' has joined the room '{$roomName}'.";
+
+        // Store system join message
+        // Parameters: roomId, userId, messageType, content, metadata (optional)
+        $this->storeMessage($roomId, $userId, 'system_join', json_encode(['username' => $username, 'action' => 'join', 'text' => $joinText]));
+
+
         echo "New connection! User: {$username} (ID: {$userId}, Conn: {$conn->resourceId}) joined Room: {$roomName} (ID: {$roomId})\n";
 
-        $joinMessage = [
-            'type' => 'server_message',
-            'text' => "User '{$username}' has joined the room '{$roomName}'."
+        $joinBroadcastMessage = [
+            'type' => 'server_message', // This is for client interpretation of a generic server message
+            'text' => $joinText // The simple text for immediate broadcast
         ];
-        $this->broadcastToRoom($roomId, $joinMessage);
+        $this->broadcastToRoom($roomId, $joinBroadcastMessage);
+    }
+
+    private function storeMessage(int $roomId, int $userId, string $messageType, string $content, ?array $metadata = null): ?int {
+        if (!$this->pdo) {
+            echo "DB connection not available. Cannot store message.\n";
+            return null;
+        }
+        try {
+            $stmt = $this->pdo->prepare(
+                "INSERT INTO chat_messages (room_id, user_id, message_type, content, metadata)
+                 VALUES (:room_id, :user_id, :message_type, :content, :metadata)"
+            );
+            $stmt->bindParam(':room_id', $roomId, PDO::PARAM_INT);
+            $stmt->bindParam(':user_id', $userId, PDO::PARAM_INT); // For system messages, user_id is who triggered it
+            $stmt->bindParam(':message_type', $messageType);
+            $stmt->bindParam(':content', $content); // For system messages, content can be JSON string
+            $jsonMetadata = $metadata ? json_encode($metadata) : null;
+            $stmt->bindParam(':metadata', $jsonMetadata);
+
+            $stmt->execute();
+            $lastId = (int)$this->pdo->lastInsertId();
+            echo "Stored message ID {$lastId} of type '{$messageType}' for user {$userId} in room {$roomId}.\n";
+            return $lastId;
+        } catch (PDOException $e) {
+            echo "Error storing message (Type: {$messageType}, User: {$userId}, Room: {$roomId}): " . $e->getMessage() . "\n";
+            return null;
+        }
     }
 
     public function onMessage(ConnectionInterface $from, $msg) {
-        if (!isset($from->username) || !isset($from->roomId)) {
+        if (!isset($from->username) || !isset($from->roomId) || !isset($from->userId)) { // Added userId check
             $this->sendErrorMessage($from, "Connection not fully initialized. Message rejected.", 4007, "Connection not initialized");
             echo "Message from uninitialized connection (resourceId {$from->resourceId}). Ignoring.\n";
             return;
         }
 
         $senderUsername = $from->username;
+        $senderUserId = $from->userId; // Get sender's user ID from connection object
         $roomId = $from->roomId;
         $roomName = $this->getRoomName($roomId) ?? "ID {$roomId}";
 
-        $numRecv = isset($this->rooms[$roomId]) ? count($this->rooms[$roomId]) -1 : 0; // -1 for sender
+        // Store the user message
+        $messageId = $this->storeMessage($roomId, $senderUserId, 'text', $msg);
+
+        if ($messageId === null) {
+            echo "Failed to store message for user {$senderUsername} in room {$roomId}. Message will still be broadcast without DB ID.\n";
+            // Potentially send an error back to sender or handle more gracefully
+        }
+
+        $numRecv = isset($this->rooms[$roomId]) ? count($this->rooms[$roomId]) -1 : 0;
         if ($numRecv < 0) $numRecv = 0;
 
-        echo sprintf('User %s (Conn %d) in Room %s (ID %d) sending message "%s" to %d other connection%s' . "\n",
-            $senderUsername, $from->resourceId, $roomName, $roomId, $msg, $numRecv, $numRecv == 1 ? '' : 's');
+        echo sprintf('User %s (ID: %d, Conn: %d) in Room %s (ID: %d) sending message "%s" (DB ID: %s) to %d other connection%s' . "\n",
+            $senderUsername, $senderUserId, $from->resourceId, $roomName, $roomId, $msg, $messageId ?? 'N/A', $numRecv, $numRecv == 1 ? '' : 's');
 
+        // The broadcasted message structure remains the same for now.
+        // Clients will primarily rely on fetching history for message IDs and server timestamps.
+        // If real-time messageId is needed, this structure would need `messageId`.
         $messageData = [
             'type' => 'message',
             'sender' => $senderUsername,
-            'text' => $msg, // Assuming $msg is plain text from client
-            'roomId' => $roomId // Good to include for client-side context if needed
+            'text' => $msg,
+            'roomId' => $roomId
+            // If we wanted to send the ID in real-time: 'messageId' => $messageId
         ];
 
-        // Broadcast to current room only
         $this->broadcastToRoom($roomId, $messageData);
     }
 
     public function onClose(ConnectionInterface $conn) {
-        if (!isset($conn->username) || !isset($conn->roomId)) {
-            echo "Uninitialized connection {$conn->resourceId} has disconnected\n";
+        if (!isset($conn->username) || !isset($conn->roomId) || !isset($conn->userId)) { // Added userId check
+            echo "Uninitialized or partially initialized connection {$conn->resourceId} has disconnected\n";
             return;
         }
 
         $username = $conn->username;
+        $userId = $conn->userId; // Get userId from connection
         $roomId = $conn->roomId;
         $roomName = $this->getRoomName($roomId) ?? "ID {$roomId}";
 
+        $leaveText = "User '{$username}' has left the room '{$roomName}'.";
+
         if (isset($this->rooms[$roomId])) {
             $this->rooms[$roomId]->detach($conn);
-            echo "User '{$username}' (Conn {$conn->resourceId}) has disconnected from Room: {$roomName} (ID: {$roomId})\n";
+            echo "User '{$username}' (ID: {$userId}, Conn: {$conn->resourceId}) has disconnected from Room: {$roomName} (ID: {$roomId})\n";
 
-            $leaveMessage = [
-                'type' => 'server_message',
-                'text' => "User '{$username}' has left the room '{$roomName}'."
+            // Store system leave message
+            $this->storeMessage($roomId, $userId, 'system_leave', json_encode(['username' => $username, 'action' => 'leave', 'text' => $leaveText]));
+
+            $leaveBroadcastMessage = [
+                'type' => 'server_message', // Client interprets this
+                'text' => $leaveText
             ];
-            $this->broadcastToRoom($roomId, $leaveMessage);
+            $this->broadcastToRoom($roomId, $leaveBroadcastMessage);
 
             if (count($this->rooms[$roomId]) == 0) {
                 echo "Room {$roomName} (ID: {$roomId}) is now empty. Removing from active rooms.\n";
