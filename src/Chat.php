@@ -182,9 +182,8 @@ class Chat implements MessageComponentInterface {
                 VALUES (:user_id, :status, NOW())
                 ON DUPLICATE KEY UPDATE status = :status, last_active = NOW()
             ");
-            $stmt->bindParam(':user_id', $userId, PDO::PARAM_INT);
-            $stmt->bindParam(':status', $status); // ENUM, so string
-            $stmt->execute();
+            // Execute by passing an associative array of parameters
+            $stmt->execute([':user_id' => $userId, ':status' => $status]);
             echo "User presence updated for user_id {$userId} to {$status}.\n";
         } catch (PDOException $e) {
             echo "Database error updating user presence for user_id {$userId}: " . $e->getMessage() . "\n";
