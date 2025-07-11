@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Ratchet Chat</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 0; padding: 0; background-color: #f4f4f4; }
+        #chat-container { max-width: 600px; margin: 30px auto; background-color: #fff; border-radius: 8px; box-shadow: 0 0 10px rgba(0,0,0,0.1); overflow: hidden; }
+        #chat-output { height: 400px; overflow-y: auto; padding: 20px; border-bottom: 1px solid #eee; }
+        .message { margin-bottom: 15px; }
+        .message .sender { font-weight: bold; color: #333; }
+        .message .text { margin-left: 5px; color: #555; }
+        .server-message { font-style: italic; color: #888; text-align: center; margin-bottom: 10px;}
+        #input-area { display: flex; padding: 15px; }
+        #message-input { flex-grow: 1; padding: 10px; border: 1px solid #ddd; border-radius: 4px; margin-right: 10px; }
+        #send-button { padding: 10px 20px; background-color: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer; }
+        #send-button:hover { background-color: #0056b3; }
+        #status { padding: 10px; background-color: #eee; text-align: center; font-size: 0.9em; color: #777; }
+    </style>
+</head>
+<body>
+    <div id="chat-container">
+        <div id="status">Connecting...</div>
+        <div id="chat-output"></div>
+        <div id="input-area">
+            <input type="text" id="message-input" placeholder="Type your message...">
+            <button id="send-button">Send</button>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener("DOMContentLoaded", function() {
+            const chatOutput = document.getElementById('chat-output');
+            const messageInput = document.getElementById('message-input');
+            const sendButton = document.getElementById('send-button');
+            const statusDisplay = document.getElementById('status');
+
+            const socket = new WebSocket('ws://localhost:8080');
+
+            function escapeHtml(unsafe) {
+                return unsafe
+                     .replace(/&/g, "&amp;")
+                     .replace(/</g, "&lt;")
+                     .replace(/>/g, "&gt;")
+                     .replace(/"/g, "&quot;")
+                     .replace(/'/g, "&#039;");
+            }
+
+            function addMessageToChat(type, sender, text) {
+                const messageDiv = document.createElement('div');
+                messageDiv.classList.add('message');
+
+                if (type === 'server') {
+                    messageDiv.classList.add('server-message');
+                    messageDiv.textContent = escapeHtml(text);
+                } else {
+                    const senderSpan = document.createElement('span');
+                    senderSpan.classList.add('sender');
+                    senderSpan.textContent = escapeHtml(sender) + ":";
+
+                    const textSpan = document.createElement('span');
+                    textSpan.classList.add('text');
+                    textSpan.textContent = escapeHtml(text);
+
+                    messageDiv.appendChild(senderSpan);
+                    messageDiv.appendChild(textSpan);
+                }
+                chatOutput.appendChild(messageDiv);
+                chatOutput.scrollTop = chatOutput.scrollHeight; // Scroll to bottom
+            }
+
+            socket.onopen = function(e) {
+                statusDisplay.textContent = 'Connected to chat server';
+                console.log("Connection established!");
+                addMessageToChat('server', null, 'Connected to the server.');
+            };
+
+            socket.onmessage = function(event) {
+                console.log(`Data received from server: ${event.data}`);
+                // Assuming server messages are either "User X: message" or "User X has joined/left"
+                const messageParts = event.data.split(':');
+                if (messageParts.length > 1 && event.data.includes('User ')) {
+                     // Heuristic to differentiate user messages from server status messages
+                    const sender = messageParts.shift().trim(); // "User X"
+                    const text = messageParts.join(':').trim();
+                    addMessageToChat('user', sender, text);
+                } else {
+                    addMessageToChat('server', null, event.data);
+                }
+            };
+
+            socket.onclose = function(event) {
+                statusDisplay.textContent = 'Disconnected from chat server';
+                if (event.wasClean) {
+                    console.log(`Connection closed cleanly, code=${event.code} reason=${event.reason}`);
+                    addMessageToChat('server', null, `Disconnected: ${event.reason || 'Connection closed cleanly'}`);
+                } else {
+                    console.error('Connection died');
+                    addMessageToChat('server', null, 'Connection died. Please refresh.');
+                }
+            };
+
+            socket.onerror = function(error) {
+                statusDisplay.textContent = 'Error connecting to chat server';
+                console.error(`WebSocket Error: ${error.message}`);
+                addMessageToChat('server', null, `Error: ${error.message || 'Could not connect to server.'}`);
+            };
+
+            sendButton.onclick = function() {
+                const message = messageInput.value;
+                if (message.trim() !== '') {
+                    socket.send(message);
+                    addMessageToChat('user', 'Me', message); // Optimistically display own message
+                    messageInput.value = '';
+                }
+            };
+
+            messageInput.addEventListener('keypress', function(e) {
+                if (e.key === 'Enter') {
+                    sendButton.click();
+                }
+            });
+        });
+    </script>
+</body>
+</html>
