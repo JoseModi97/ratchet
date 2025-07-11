@@ -44,6 +44,18 @@
         #chat-header #back-to-dashboard { background-color: #ffc107; color: #212529; border: none; padding: 6px 10px; border-radius: 4px; cursor: pointer; font-size: 0.9em; }
         #chat-header #back-to-dashboard:hover { background-color: #e0a800; }
 
+        /* Notification Button & Popup Styles */
+        #notification-button { background-color: transparent; color: white; border: none; font-size: 1.2em; cursor: pointer; padding: 5px; position: relative; }
+        #notification-button:hover { opacity: 0.8; }
+        #notification-counter { position: absolute; top: -2px; right: -4px; background-color: red; color: white; border-radius: 50%; padding: 1px 4px; font-size: 0.65em; line-height: 1; display: none; /* Initially hidden */ }
+        #notification-popup { display: none; position: absolute; top: 55px; /* Adjusted based on header height */ right: 20px; width: 320px; max-height: 400px; overflow-y: auto; background-color: #ffffff; border: 1px solid #ccc; box-shadow: 0 4px 12px rgba(0,0,0,0.15); z-index: 1000; padding: 15px; border-radius: 6px; font-size: 0.9em; }
+        #notification-popup h4 { margin-top: 0; margin-bottom: 10px; color: #333; border-bottom: 1px solid #eee; padding-bottom: 8px; }
+        #notification-list { list-style-type: decimal; /* Numbered list */ padding-left: 20px; /* Space for numbers */ margin: 0; }
+        #notification-list li { padding: 6px 0; border-bottom: 1px solid #f0f0f0; color: #555; }
+        #notification-list li:last-child { border-bottom: none; }
+        .notification-timestamp { font-size: 0.8em; color: #888; margin-left: 8px; }
+
+
         #chat-content-wrapper { display: flex; flex-grow: 1; overflow: hidden; }
 
         #chat-container { flex-grow: 1; display: flex; flex-direction: column; overflow: hidden; position: relative; /* For load more button */ }
@@ -125,7 +137,19 @@
         <div id="chat-wrapper">
             <div id="chat-header">
                 <span id="current-room-display"></span>
-                <button id="back-to-dashboard">Back to Rooms</button>
+                <div>
+                    <button id="notification-button" style="position: relative; margin-right: 10px;">
+                        &#128276; <!-- Bell icon -->
+                        <span id="notification-counter" style="position: absolute; top: -5px; right: -5px; background-color: red; color: white; border-radius: 50%; padding: 2px 5px; font-size: 0.7em; display: none;">0</span>
+                    </button>
+                    <button id="back-to-dashboard">Back to Rooms</button>
+                </div>
+            </div>
+            <div id="notification-popup" style="display: none; position: absolute; top: 50px; right: 20px; width: 300px; max-height: 400px; overflow-y: auto; background-color: white; border: 1px solid #ccc; box-shadow: 0 2px 10px rgba(0,0,0,0.2); z-index: 1000; padding: 10px; border-radius: 5px;">
+                <h4>Room Activity</h4>
+                <ul id="notification-list" style="list-style-type: none; padding: 0; margin: 0;">
+                    <!-- Notifications will be added here by JS -->
+                </ul>
             </div>
             <div id="status">Connecting...</div>
             <div id="chat-content-wrapper">
@@ -187,6 +211,12 @@
             const sendButton = document.getElementById('send-button');
             const loadMoreMessagesButton = document.getElementById('load-more-messages');
 
+            // UI Elements - Notifications
+            const notificationButton = document.getElementById('notification-button');
+            const notificationCounter = document.getElementById('notification-counter');
+            const notificationPopup = document.getElementById('notification-popup');
+            const notificationListUL = document.getElementById('notification-list');
+
 
             // UI Elements - Member/Invite Area
             const memberInviteArea = document.getElementById('member-invite-area');
@@ -203,6 +233,10 @@
             let currentRoomCreatorId = null;
             let oldestMessageIdLoaded = null; // Track the oldest message ID loaded for pagination
             let isLoadingHistory = false; // Flag to prevent multiple history loads
+
+            // Notification state
+            let notifications = [];
+            let unreadNotificationCount = 0;
 
             function escapeHtml(unsafe) {
                 return unsafe
@@ -227,21 +261,41 @@
                 let SENDER_TEXT = data.senderUsername || data.sender || "System";
                 let CONTENT_TEXT = typeof data.content !== 'undefined' ? data.content : (typeof data.text !== 'undefined' ? data.text : "");
                 let MESSAGE_TYPE = data.messageType || data.type;
+                let SENT_AT = data.sentAt || new Date().toISOString(); // For live messages or history without it
 
                 const isMe = SENDER_TEXT === currentUsername;
 
+                // --- Notification Filtering Logic ---
+                // Check if the message is a join/leave message or a "WebSocket connected" message
+                const isJoinLeaveMessage = (MESSAGE_TYPE === 'system_join' || MESSAGE_TYPE === 'system_leave') ||
+                                           (MESSAGE_TYPE === 'server_message' && (CONTENT_TEXT.includes(' has joined the room') || CONTENT_TEXT.includes(' has left the room')));
+                const isWebSocketConnectMessage = MESSAGE_TYPE === 'server_message' && CONTENT_TEXT.startsWith('WebSocket connected to room');
+
+                if (isWebSocketConnectMessage) {
+                    // Completely ignore "WebSocket connected..." messages
+                    console.log("Filtered out WebSocket connect message:", CONTENT_TEXT);
+                    return;
+                }
+
+                if (isJoinLeaveMessage) {
+                    let notificationText = CONTENT_TEXT;
+                    if (MESSAGE_TYPE === 'system_join' || MESSAGE_TYPE === 'system_leave') {
+                        try {
+                            const parsedContent = JSON.parse(CONTENT_TEXT);
+                            notificationText = parsedContent.text || CONTENT_TEXT;
+                        } catch (e) { /* Fallback to CONTENT_TEXT */ }
+                    }
+                    addNotification(escapeHtml(notificationText), SENT_AT);
+                    // Do not display join/leave messages in the main chat, they are now notifications
+                    return;
+                }
+                // --- End Notification Filtering ---
+
+
+                // For regular messages or other server messages not filtered out
                 if (MESSAGE_TYPE === 'server_message' || MESSAGE_TYPE === 'error') {
                     messageDiv.classList.add('server-message');
                     messageDiv.textContent = escapeHtml(CONTENT_TEXT);
-                } else if (MESSAGE_TYPE === 'system_join' || MESSAGE_TYPE === 'system_leave') {
-                    messageDiv.classList.add('server-message');
-                    try {
-                        // Assuming system message content is JSON like: {"username": "User", "action": "join/leave", "text": "User X has joined/left..."}
-                        const parsedContent = JSON.parse(CONTENT_TEXT);
-                        messageDiv.textContent = escapeHtml(parsedContent.text || CONTENT_TEXT); // Use parsed text if available
-                    } catch (e) {
-                        messageDiv.textContent = escapeHtml(CONTENT_TEXT); // Fallback if content is not JSON or no 'text' field
-                    }
                 } else { // Regular user text messages
                     const senderSpan = document.createElement('span');
                     senderSpan.classList.add('sender');
@@ -275,6 +329,56 @@
                 setTimeout(() => memberInviteMessage.textContent = '', 3000);
             }
 
+            // --- Notification Logic ---
+            function renderNotifications() {
+                notificationListUL.innerHTML = ''; // Clear existing notifications
+                notifications.forEach(notif => {
+                    const li = document.createElement('li');
+                    li.textContent = notif.text;
+                    // Optionally add timestamp if available in notif object
+                    // if (notif.timestamp) {
+                    //     const timeSpan = document.createElement('span');
+                    //     timeSpan.className = 'notification-timestamp';
+                    //     timeSpan.textContent = new Date(notif.timestamp).toLocaleTimeString();
+                    //     li.appendChild(timeSpan);
+                    // }
+                    notificationListUL.appendChild(li);
+                });
+
+                if (unreadNotificationCount > 0) {
+                    notificationCounter.textContent = unreadNotificationCount;
+                    notificationCounter.style.display = 'block';
+                } else {
+                    notificationCounter.style.display = 'none';
+                }
+            }
+
+            function addNotification(messageText, messageTimestamp) {
+                // Limit the number of stored notifications to, say, 50
+                if (notifications.length >= 50) {
+                    notifications.shift(); // Remove the oldest
+                }
+                notifications.push({ text: messageText, timestamp: messageTimestamp });
+                unreadNotificationCount++;
+                renderNotifications();
+            }
+
+            notificationButton.addEventListener('click', () => {
+                if (parseInt(currentUserId) === parseInt(currentRoomCreatorId)) {
+                    notificationPopup.style.display = notificationPopup.style.display === 'none' ? 'block' : 'none';
+                    if (notificationPopup.style.display === 'block') {
+                        unreadNotificationCount = 0; // Clear counter when popup is opened
+                        renderNotifications(); // Re-render to update counter display
+                    }
+                } else {
+                    // Optionally, inform non-owners they can't view it
+                    // For now, it simply won't open if not owner.
+                    // A small, temporary message could be shown here.
+                    console.log("Notifications are only visible to the room owner.");
+                     // Example: alert("Notifications are only visible to the room owner.");
+                }
+            });
+
 
             // --- UI State Management ---
             function showAuthUI() {
@@ -306,6 +410,12 @@
                 isLoadingHistory = false;
                 chatOutput.innerHTML = ''; // Clear previous room's messages
                 loadMoreMessagesButton.style.display = 'none'; // Hide load more button for new room initially
+
+                // Reset notifications for the new room
+                notifications = [];
+                unreadNotificationCount = 0;
+                renderNotifications(); // Update display (clear counter, empty list)
+                notificationPopup.style.display = 'none'; // Ensure popup is hidden
 
                 authContainer.style.display = 'none';
                 roomDashboard.style.display = 'none';
@@ -758,6 +868,13 @@
                 currentRoomCreatorId = null;
                 memberInviteArea.style.display = 'none'; // Hide member area
                 inviteUserSelect.innerHTML = '<option value="">Select user to invite...</option>'; // Clear invite select
+
+                // Clear notifications when going back to dashboard
+                notifications = [];
+                unreadNotificationCount = 0;
+                renderNotifications();
+                notificationPopup.style.display = 'none';
+
                 await showRoomDashboardUI(currentUsername);
             });
 
