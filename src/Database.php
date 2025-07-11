@@ -1,22 +1,26 @@
 <?php
+
 namespace MyApp;
 
 use PDO;
 use PDOException;
 
-class Database {
+class Database
+{
     // TODO: Move these to a configuration file
     private $host = '127.0.0.1'; // or 'localhost'
     private $db_name = 'chat_app';
-    private $username = 'your_db_user'; // Placeholder
-    private $password = 'your_db_password'; // Placeholder
+    private $username = 'root'; // Placeholder
+    private $password = ''; // Placeholder
     private $conn;
 
-    public function __construct() {
+    public function __construct()
+    {
         $this->conn = null;
     }
 
-    public function getConnection() {
+    public function getConnection()
+    {
         if ($this->conn) {
             return $this->conn;
         }
@@ -27,7 +31,7 @@ class Database {
             $this->conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
             $this->conn->setAttribute(PDO::ATTR_EMULATE_PREPARES, false);
             // Optional: PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC
-        } catch(PDOException $exception) {
+        } catch (PDOException $exception) {
             // In a real app, log this error and handle it gracefully
             echo "Connection error: " . $exception->getMessage();
             // For now, we might want to throw the exception or return null
@@ -39,4 +43,3 @@ class Database {
         return $this->conn;
     }
 }
-?>
