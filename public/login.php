@@ -42,8 +42,8 @@ try {
     $pdo = Db::getConnection();
 
     // Try to fetch user by username or email
-    $stmt = $pdo->prepare("SELECT id, username, password_hash FROM users WHERE username = :login OR email = :login");
-    $stmt->execute([':login' => $loginIdentifier]);
+    $stmt = $pdo->prepare("SELECT id, username, password_hash FROM users WHERE username = :username OR email = :email");
+    $stmt->execute([':username' => $loginIdentifier, ':email' => $loginIdentifier]);
     $user = $stmt->fetch();
 
     if (!$user || !password_verify($password, $user['password_hash'])) {
