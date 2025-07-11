@@ -135,21 +135,25 @@
             flex-grow: 1;
             display: flex;
             flex-direction: column;
+            min-height: 0; /* Ensure it can shrink if needed, and properly calculate grow */
         }
-        #chat-content-wrapper { /* Already has inline style, but good to define base */
+        #chat-content-wrapper {
             flex-grow: 1;
             display: flex;
             overflow-y: hidden; /* Children handle their scroll */
+            min-height: 0; /* Critical for nested flex-grow */
         }
-        #chat-container { /* Already has inline style, but good to define base */
+        #chat-container {
             flex-grow: 1;
             display: flex;
             flex-direction: column;
             overflow-y: hidden; /* Children handle their scroll */
+            min-width: 0; /* For horizontal flex children, if it were the case */
         }
         #chat-output { /* class .chat-messages also applies flex, this ensures flex-grow and scroll */
             flex-grow: 1;
             overflow-y: auto;
+            min-height: 0; /* Critical for nested flex-grow */
         }
         #member-invite-area { /* JS will toggle display, other styles are for when visible */
             width: 250px; /* Or responsive width */
