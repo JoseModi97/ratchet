@@ -711,6 +711,7 @@
             function connectWebSocket(username, roomId) {
                 if (socket && (socket.readyState === WebSocket.OPEN || socket.readyState === WebSocket.CONNECTING)) {
                     console.log("WebSocket closing existing connection before opening new one.");
+                    socket.onclose = null; // Prevent old onclose from firing during switch
                     socket.close();
                 }
 
