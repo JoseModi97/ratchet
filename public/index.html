@@ -2,8 +2,25 @@
 <html>
 <head>
     <title>Chat App</title>
+    <!-- Bootstrap 4.5.0 CDN -->
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.0/css/bootstrap.min.css" integrity="sha384-9aIt2nRpC12Uk9gS9baDl411NQApFmC26EwAOH8WgZl5MYYxFfc+NcPb1dKGj7Sk" crossorigin="anonymous">
+    <!-- Link to custom_styles.css (will be created in next step) -->
+    <link rel="stylesheet" href="css/custom_styles.css">
     <style>
+        /* Existing styles from the original file will be here */
         body { font-family: Arial, sans-serif; margin: 0; padding: 0; background-color: #f4f4f4; display: flex; flex-direction: column; height: 100vh; font-size: 14px; }
+        /* Ensuring the new layout takes full height */
+        .container-fluid, .row, #room-list-container, #chat-interface-container { height: 100%; }
+        #room-list-container { display: flex; flex-direction: column; } /* To make room-dashboard take available space if needed */
+        #chat-interface-container { display: flex; flex-direction: column; } /* To make chat-wrapper take available space */
+
+
+        /* Minimal initial styles for the new structure to be visible if content is not yet filling it */
+        /* #room-list { border: 1px solid #ddd; padding: 10px; } */ /* YAML will style this */
+        /* #chat-interface { border: 1px solid #ccc; padding: 10px; } */ /* YAML will style this */
+
+
+        /* Original CSS from the file */
         .container { width: 100%; background-color: #fff; display: flex; flex-direction: column; flex-grow: 1; /* Removed max-width, margin, border-radius, box-shadow */}
 
         .header-bar { background-color: #007bff; color: white; padding: 15px 20px; display: flex; justify-content: space-between; align-items: center; /* Removed border-top-left-radius, border-top-right-radius */ }
@@ -22,23 +39,24 @@
         .toggle-form button { background: none; border: none; color: #007bff; cursor: pointer; text-decoration: underline; font-size: 0.9em; }
         #auth-message { text-align: center; margin-bottom: 15px; color: red; min-height: 1.2em; }
 
-        /* Room Dashboard */
-        #room-dashboard { padding: 20px; display: none; }
+        /* Room Dashboard styling (from original) */
+        #room-dashboard { /* padding: 20px; */ /* display: none; */ /* Will be controlled by JS, Bootstrap columns handle layout */ flex-grow: 1; display: flex; flex-direction: column; }
         #room-dashboard h2 { margin-top: 0; color: #333; text-align: center; }
         #room-dashboard h3 { margin-top: 20px; margin-bottom: 10px; color: #555; border-bottom: 1px solid #eee; padding-bottom: 5px;}
         #create-room-form input[type="text"] { width: calc(70% - 12px); padding: 8px; margin-right: 10px; border: 1px solid #ddd; border-radius: 4px;}
         #create-room-form button { padding: 8px 15px; background-color: #28a745; color: white; border: none; border-radius: 4px; cursor: pointer; }
         #create-room-form button:hover { background-color: #218838; }
-        #room-list { list-style: none; padding: 0; max-height: 200px; overflow-y: auto; border: 1px solid #eee; border-radius: 4px; }
-        #room-list li { padding: 10px; border-bottom: 1px solid #eee; cursor: pointer; display: flex; justify-content: space-between; align-items: center; }
-        #room-list li:last-child { border-bottom: none; }
-        #room-list li:hover { background-color: #f0f0f0; }
-        #room-list .room-creator { font-size: 0.8em; color: #777; }
+        /* #room-list ul (original name) styling from original */
+        #room-dashboard #room-list { list-style: none; padding: 0; max-height: 200px; overflow-y: auto; border: 1px solid #eee; border-radius: 4px; }
+        #room-dashboard #room-list li { padding: 10px; border-bottom: 1px solid #eee; cursor: pointer; display: flex; justify-content: space-between; align-items: center; }
+        #room-dashboard #room-list li:last-child { border-bottom: none; }
+        #room-dashboard #room-list li:hover { background-color: #f0f0f0; }
+        #room-dashboard #room-list .room-creator { font-size: 0.8em; color: #777; }
         #dashboard-message { text-align: center; margin-top: 10px; color: #555; }
 
 
-        /* Chat Area */
-        #chat-wrapper { display: none; flex-grow: 1; flex-direction: column; }
+        /* Chat Area styling (from original) */
+        #chat-wrapper { /* display: none; */ flex-grow: 1; display: flex; flex-direction: column; } /* Will be controlled by JS, Bootstrap columns handle layout */
         #chat-header { background-color: #6c757d; color: white; padding: 10px 20px; display: flex; justify-content: space-between; align-items: center; }
         #chat-header #current-room-display { font-weight: bold; }
         #chat-header #back-to-dashboard { background-color: #ffc107; color: #212529; border: none; padding: 6px 10px; border-radius: 4px; cursor: pointer; font-size: 0.9em; }
@@ -48,25 +66,25 @@
         #notification-button { background-color: transparent; color: white; border: none; font-size: 1.2em; cursor: pointer; padding: 5px; position: relative; }
         #notification-button:hover { opacity: 0.8; }
         #notification-counter { position: absolute; top: -2px; right: -4px; background-color: red; color: white; border-radius: 50%; padding: 1px 4px; font-size: 0.65em; line-height: 1; display: none; /* Initially hidden */ }
-        #notification-popup {
+        #notification-popup { /* Style from YAML will override this if selector matches */
             display: none; /* Initially hidden */
-            position: absolute; /* Relative to chat-container */
-            top: 10px; /* Small padding from the top of chat-container */
-            right: 10px; /* Small padding from the right of chat-container */
-            width: calc(100% - 40px); /* Adjust width, consider padding of parent */
-            max-width: 300px; /* Max width for readability */
-            max-height: calc(100% - 60px); /* Adjust based on chat-container height and input area, leave space for input area */
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            width: calc(100% - 40px);
+            max-width: 300px;
+            max-height: calc(100% - 60px);
             overflow-y: auto;
-            background-color: #f9f9f9; /* Slightly different background to distinguish */
+            background-color: #f9f9f9;
             border: 1px solid #ddd;
             box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-            z-index: 10; /* Above chat messages but below overall modals if any */
+            z-index: 10;
             padding: 10px;
             border-radius: 5px;
             font-size: 0.9em;
         }
         #notification-popup h4 { margin-top: 0; margin-bottom: 10px; color: #333; border-bottom: 1px solid #eee; padding-bottom: 8px; }
-        #notification-list { list-style-type: decimal; /* Numbered list */ padding-left: 20px; /* Space for numbers */ margin: 0; }
+        #notification-list { list-style-type: decimal; padding-left: 20px; margin: 0; }
         #notification-list li { padding: 6px 0; border-bottom: 1px solid #f0f0f0; color: #555; }
         #notification-list li:last-child { border-bottom: none; }
         .notification-timestamp { font-size: 0.8em; color: #888; margin-left: 8px; }
@@ -74,15 +92,17 @@
 
         #chat-content-wrapper { display: flex; flex-grow: 1; overflow: hidden; }
 
-        #chat-container { flex-grow: 1; display: flex; flex-direction: column; overflow: hidden; position: relative; /* For load more button */ }
-        #load-more-messages { display: none; /* Hidden by default */ width: auto; margin: 10px auto 0px auto; padding: 8px 15px; background-color: #6c757d; color: white; border: none; border-radius: 4px; cursor: pointer; text-align: center;}
+        #chat-container { flex-grow: 1; display: flex; flex-direction: column; overflow: hidden; position: relative; }
+        #load-more-messages { display: none; width: auto; margin: 10px auto 0px auto; padding: 8px 15px; background-color: #6c757d; color: white; border: none; border-radius: 4px; cursor: pointer; text-align: center;}
         #load-more-messages:hover { background-color: #5a6268; }
 
-        #chat-output { /* height: 300px; Adjusted for member list */ overflow-y: auto; padding: 15px; border-bottom: 1px solid #eee; flex-grow: 1;}
+        /* #chat-output styling from original (YAML may override/specify more) */
+        #chat-output { /* height: 300px; */ overflow-y: auto; padding: 15px; border-bottom: 1px solid #eee; flex-grow: 1;}
         .message { margin-bottom: 12px; line-height: 1.4; }
         .message .sender { font-weight: bold; color: #007bff; }
         .message .text { margin-left: 8px; color: #333; word-wrap: break-word; }
         .server-message { font-style: italic; color: #6c757d; text-align: center; margin-bottom: 10px; font-size: 0.9em;}
+        /* #input-area / #message-input styling from original (YAML may override/specify more) */
         #input-area { display: flex; padding: 15px; border-top: 1px solid #eee; background-color: #f8f9fa; }
         #message-input { flex-grow: 1; padding: 10px; border: 1px solid #ddd; border-radius: 4px; margin-right: 10px; }
         #send-button { padding: 10px 20px; background-color: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer; }
@@ -97,23 +117,22 @@
         #member-list .remove-member-btn { background: none; border: none; color: #dc3545; cursor: pointer; font-size: 0.8em; padding: 2px 5px;}
         #member-list .remove-member-btn:hover { text-decoration: underline; }
 
-        /* #invite-form input[type="text"] { width: calc(100% - 18px); padding: 6px; margin-bottom: 8px; border: 1px solid #ccc; border-radius: 3px; font-size: 0.9em;} */ /* Replaced by select */
         #invite-form select#invite-user-select { /* Style already applied inline, but can be centralized here */ }
         #invite-form button { width: 100%; padding: 6px; background-color: #17a2b8; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 0.9em;}
         #invite-form button:hover { background-color: #138496; }
         #member-invite-message { font-size: 0.8em; color: green; margin-top: 5px; min-height: 1em;}
 
-        /* Mobile Responsiveness */
+        /* Mobile Responsiveness from original - will need review with Bootstrap and YAML's responsive rules */
         @media (max-width: 768px) {
-            body { font-size: 13px; } /* Slightly smaller base font */
+            /* body { font-size: 13px; } */ /* YAML will control this */
 
             .header-bar, #chat-header, #input-area { padding: 10px; }
-            #auth-container, #room-dashboard { padding: 15px; }
+            #auth-container /*, #room-dashboard - now part of a col */ { padding: 15px; }
 
             #room-dashboard h2 { font-size: 1.5em; }
             #room-dashboard h3 { font-size: 1.1em; }
             #create-room-form input[type="text"] { width: calc(100% - 90px); /* Adjust based on button width */ }
-            #room-list li { padding: 8px; }
+            #room-dashboard #room-list li { padding: 8px; }
 
 
             #chat-content-wrapper { flex-direction: column; }
@@ -134,7 +153,7 @@
             .message .text { font-size: 0.9em; }
 
             #message-input { padding: 8px; margin-right: 8px; }
-            #send-button, #back-to-dashboard, .header-bar #logout-button { padding: 8px 12px; font-size: 0.9em; }
+            #send-button, #chat-header #back-to-dashboard, .header-bar #logout-button { padding: 8px 12px; font-size: 0.9em; }
 
             /* Auth forms adjustments */
             .auth-form input[type="text"], .auth-form input[type="password"] { padding: 12px; }
@@ -152,16 +171,16 @@
         }
 
         @media (max-width: 480px) {
-            body { font-size: 12px; }
+            /* body { font-size: 12px; } */ /* YAML will control this */
             .header-bar, #chat-header, #input-area { padding: 8px; }
-            #auth-container, #room-dashboard { padding: 10px; }
+            #auth-container /*, #room-dashboard */ { padding: 10px; }
 
             #create-room-form input[type="text"] { width: calc(100% - 80px); } /* Further adjust */
             #create-room-form button { padding: 8px 10px; }
 
 
             #chat-header #current-room-display { font-size: 0.9em; }
-            #back-to-dashboard { font-size: 0.8em; padding: 6px 8px; }
+            #chat-header #back-to-dashboard { font-size: 0.8em; padding: 6px 8px; }
             .header-bar #logout-button { font-size: 0.8em; padding: 6px 8px; }
 
 
@@ -174,92 +193,116 @@
     </style>
 </head>
 <body>
-    <div class="container">
-        <div class="header-bar" style="display: none;" id="main-header-bar">
-            <span id="user-info"></span>
-            <button id="logout-button">Logout</button>
-        </div>
+    <!-- Main application header (username, logout) - will be shown by JS -->
+    <div class="header-bar" style="display: none;" id="main-header-bar">
+        <span id="user-info"></span>
+        <button id="logout-button">Logout</button>
+    </div>
 
-        <!-- Authentication Forms -->
-        <div id="auth-container">
-            <h2 id="auth-title">Login</h2>
-            <div id="auth-message"></div>
-            <form id="login-form" class="auth-form">
-                <input type="text" id="login-username" placeholder="Username" required>
-                <input type="password" id="login-password" placeholder="Password" required>
-                <button type="submit">Login</button>
-                <div class="toggle-form">
-                    Don't have an account? <button type="button" id="show-register">Register here</button>
-                </div>
-            </form>
-            <form id="register-form" class="auth-form">
-                <input type="text" id="register-username" placeholder="Username" required>
-                <input type="password" id="register-password" placeholder="Password" required>
-                <button type="submit">Register</button>
-                <div class="toggle-form">
-                    Already have an account? <button type="button" id="show-login">Login here</button>
-                </div>
-            </form>
-        </div>
+    <!-- Auth container will be shown initially by JS, outside the two-column layout -->
+    <div id="auth-container">
+        <h2 id="auth-title">Login</h2>
+        <div id="auth-message"></div>
+        <form id="login-form" class="auth-form">
+            <input type="text" id="login-username" placeholder="Username" required>
+            <input type="password" id="login-password" placeholder="Password" required>
+            <button type="submit">Login</button>
+            <div class="toggle-form">
+                Don't have an account? <button type="button" id="show-register">Register here</button>
+            </div>
+        </form>
+        <form id="register-form" class="auth-form">
+            <input type="text" id="register-username" placeholder="Username" required>
+            <input type="password" id="register-password" placeholder="Password" required>
+            <button type="submit">Register</button>
+            <div class="toggle-form">
+                Already have an account? <button type="button" id="show-login">Login here</button>
+            </div>
+        </form>
+    </div>
 
-        <!-- Room Dashboard -->
-        <div id="room-dashboard">
-            <h2>Room Dashboard</h2>
-            <div id="dashboard-message"></div>
-            <form id="create-room-form">
-                <h3>Create New Room</h3>
-                <input type="text" id="new-room-name" placeholder="Enter room name" required>
-                <button type="submit">Create Room</button>
-            </form>
-            <h3>Your Rooms</h3>
-            <ul id="room-list">
-                <!-- Room items will be populated by JS -->
-            </ul>
-        </div>
-
-        <!-- Chat Application -->
-        <div id="chat-wrapper">
-            <div id="chat-header">
-                <span id="current-room-display"></span>
-                <div>
-                    <button id="notification-button" style="position: relative; margin-right: 10px;">
-                        &#128276; <!-- Bell icon -->
-                        <span id="notification-counter" style="position: absolute; top: -5px; right: -5px; background-color: red; color: white; border-radius: 50%; padding: 2px 5px; font-size: 0.7em; display: none;">0</span>
-                    </button>
-                    <button id="back-to-dashboard">Back to Rooms</button>
+    <!-- New Bootstrap Two-Column Layout -->
+    <!-- This container will be shown by JS after login, replacing auth-container display -->
+    <div class="container-fluid" id="main-app-container" style="display: none; flex-grow: 1;">
+        <div class="row vh-100"> <!-- vh-100 to attempt full viewport height for the row -->
+            <!-- Left Column for Room List -->
+            <div id="room-list-container" class="col-md-3 bg-light vh-100 overflow-auto list-group">
+                <!-- Existing Room Dashboard content will be managed here by JS -->
+                <!-- The id "room-list" from YAML is applied here, original id "room-dashboard" kept for JS -->
+                <div id="room-dashboard" class="p-3"> <!-- p-3 for some padding -->
+                    <h2>Room Dashboard</h2>
+                    <div id="dashboard-message"></div>
+                    <form id="create-room-form">
+                        <h3>Create New Room</h3>
+                        <input type="text" id="new-room-name" placeholder="Enter room name" required>
+                        <button type="submit">Create Room</button>
+                    </form>
+                    <h3>Your Rooms</h3>
+                    <!-- The actual list of rooms from YAML is #room-list, original JS uses #room-dashboard #room-list ul -->
+                    <!-- The classes from YAML for room_list are on the parent column. This ul is for messages. -->
+                    <ul id="room-list" class="list-group"> <!-- This is the UL for rooms, give it #room-list for YAML, but original JS targets #room-dashboard #room-list -->
+                        <!-- Room items will be populated by JS -->
+                    </ul>
                 </div>
             </div>
-            <div id="status">Connecting...</div>
-            <div id="chat-content-wrapper">
-                <div id="chat-container">
-                    <div id="notification-popup" style="display: none; /* Initial style, will be refined by CSS block */">
-                        <h4>Room Activity</h4>
-                        <ul id="notification-list" style="list-style-type: none; padding: 0; margin: 0;">
-                            <!-- Notifications will be added here by JS -->
-                        </ul>
+
+            <!-- Right Column for Chat Interface -->
+            <!-- The id "chat-interface" from YAML is applied here, original id "chat-wrapper" kept for JS -->
+            <div id="chat-interface" class="col-md-9 d-flex flex-column vh-100">
+                <!-- "Back to Rooms" button for mobile, placed for visibility when room list is hidden -->
+                <button class="btn btn-link text-muted p-0 back_to_rooms_button" id="actual-back-to-rooms-btn" style="display: none; margin-left: 10px; margin-top: 5px; align-self: flex-start;">← Back to Rooms</button>
+                 <!-- Existing Chat Application content will be managed here by JS -->
+                <div id="chat-wrapper"> <!-- This was the main container for chat view -->
+                    <div id="chat-header">
+                        <span id="current-room-display"></span>
+                        <div>
+                             <!-- "Back to Rooms" button will be added in Part 2 as per plan -->
+                            <button id="notification-button" style="position: relative; margin-right: 10px;">
+                                &#128276; <!-- Bell icon -->
+                                <span id="notification-counter" style="position: absolute; top: -5px; right: -5px; background-color: red; color: white; border-radius: 50%; padding: 2px 5px; font-size: 0.7em; display: none;">0</span>
+                            </button>
+                            <button id="back-to-dashboard">Back to Rooms</button> <!-- This existing button might serve the purpose of YAML's back_to_rooms_button -->
+                        </div>
                     </div>
-                    <button id="load-more-messages">Load More Messages</button>
-                    <div id="chat-output"></div>
-                    <div id="input-area">
-                        <input type="text" id="message-input" placeholder="Type your message...">
-                        <button id="send-button">Send</button>
+                    <div id="status">Connecting...</div>
+                    <div id="chat-content-wrapper">
+                        <div id="chat-container">
+                             <!-- Notification popup will be added in Part 2 -->
+                            <button id="load-more-messages">Load More Messages</button>
+                            <!-- chat-output is where messages go, ARIA label to be added in Part 2 -->
+                            <div id="chat-output" aria-label="Chat messages area"></div>
+                            <!-- input-area and message-input, send_button will be styled/verified in Part 2 -->
+                            <div id="input-area">
+                                <input type="text" id="message-input" class="form-control rounded-0" placeholder="Type your message here..." aria-label="Message input field">
+                                <button id="send-button" class="btn btn-primary rounded-0">Send</button>
+                            </div>
+                        </div>
+                        <div id="member-invite-area" style="display: none;">
+                            <h4>Members</h4>
+                            <ul id="member-list"></ul>
+                            <div id="member-invite-message"></div>
+                            <form id="invite-form">
+                                <h4>Invite User</h4>
+                                <select id="invite-user-select" required style="width: 100%; padding: 6px; margin-bottom: 8px; border: 1px solid #ccc; border-radius: 3px; font-size: 0.9em; background-color: white;">
+                                    <option value="">Select user to invite...</option>
+                                </select>
+                                <button type="submit">Invite</button>
+                            </form>
+                        </div>
                     </div>
-                </div>
-                <div id="member-invite-area" style="display: none;"> <!-- Initially hidden, shown if creator -->
-                    <h4>Members</h4>
-                    <ul id="member-list"></ul>
-                    <div id="member-invite-message"></div>
-                    <form id="invite-form">
-                        <h4>Invite User</h4>
-                        <select id="invite-user-select" required style="width: 100%; padding: 6px; margin-bottom: 8px; border: 1px solid #ccc; border-radius: 3px; font-size: 0.9em; background-color: white;">
-                            <option value="">Select user to invite...</option>
-                        </select>
-                        <button type="submit">Invite</button>
-                    </form>
                 </div>
             </div>
         </div>
     </div>
+
+    <!-- Global Notification Popup from YAML (placed outside main-app-container for global positioning) -->
+    <div class="notification-popup" aria-label="Room activity notifications" id="yaml-notification-popup">
+        <!-- Content for this popup would be dynamically added by JS if it were to be used -->
+        <h5>Notifications</h5>
+        <p>New activity in rooms.</p>
+        <button class="btn btn-sm btn-secondary mt-2" onclick="document.getElementById('yaml-notification-popup').style.display='none'">Close</button>
+    </div>
+
 
     <script>
         document.addEventListener("DOMContentLoaded", function() {
@@ -272,41 +315,55 @@
             const showRegisterBtn = document.getElementById('show-register');
             const showLoginBtn = document.getElementById('show-login');
 
+            // UI Elements - Main App Container (new)
+            const mainAppContainer = document.getElementById('main-app-container');
+
+
             // UI Elements - Main Header
             const mainHeaderBar = document.getElementById('main-header-bar');
             const userInfoDisplay = document.getElementById('user-info');
             const logoutButton = document.getElementById('logout-button');
 
-            // UI Elements - Room Dashboard
-            const roomDashboard = document.getElementById('room-dashboard');
+            // UI Elements - Room Dashboard (now inside left column)
+            const roomDashboardContainer = document.getElementById('room-list-container'); // The column
+            const roomDashboard = document.getElementById('room-dashboard'); // The content div
             const createRoomForm = document.getElementById('create-room-form');
             const newRoomNameInput = document.getElementById('new-room-name');
-            const roomListUL = document.getElementById('room-list');
+            // IMPORTANT: The YAML refers to the left column content as "room_list".
+            // The existing JS uses #room-dashboard #room-list (an UL) for listing rooms.
+            // I've given the UL the id="room-list" to match YAML, and it's inside #room-dashboard.
+            // The column itself has id="room-list-container" for clarity, and YAML classes.
+            const roomListUL = document.getElementById('room-list'); // This is the UL for rooms.
             const dashboardMessage = document.getElementById('dashboard-message');
 
-            // UI Elements - Chat
-            const chatWrapper = document.getElementById('chat-wrapper');
+            // UI Elements - Chat (now inside right column)
+            const chatInterfaceContainer = document.getElementById('chat-interface'); // The column
+            const chatWrapper = document.getElementById('chat-wrapper'); // The content div
             const chatHeader = document.getElementById('chat-header');
             const currentRoomDisplay = document.getElementById('current-room-display');
-            const backToDashboardButton = document.getElementById('back-to-dashboard');
+            const backToDashboardButton = document.getElementById('back-to-dashboard'); // Existing button
             const statusDisplay = document.getElementById('status');
-            const chatOutput = document.getElementById('chat-output'); // This is the scrollable message area
+            const chatOutput = document.getElementById('chat-output');
             const messageInput = document.getElementById('message-input');
             const sendButton = document.getElementById('send-button');
             const loadMoreMessagesButton = document.getElementById('load-more-messages');
 
             // UI Elements - Notifications
-            const notificationButton = document.getElementById('notification-button');
+            const notificationButton = document.getElementById('notification-button'); // Original bell icon
             const notificationCounter = document.getElementById('notification-counter');
-            const notificationPopup = document.getElementById('notification-popup');
-            const notificationListUL = document.getElementById('notification-list');
+            const yamlNotificationPopup = document.getElementById('yaml-notification-popup'); // New global popup from YAML
+            // const notificationPopup = document.getElementById('notification-popup'); // This is the original one, kept for now
+            const notificationListUL = document.getElementById('notification-list'); // Inside the original popup
 
+
+            // UI Elements - Back to Rooms button (new)
+            const actualBackToRoomsBtn = document.getElementById('actual-back-to-rooms-btn');
 
             // UI Elements - Member/Invite Area
             const memberInviteArea = document.getElementById('member-invite-area');
             const memberListUL = document.getElementById('member-list');
             const inviteForm = document.getElementById('invite-form');
-            const inviteUserSelect = document.getElementById('invite-user-select'); // Changed from inviteUsernameInput
+            const inviteUserSelect = document.getElementById('invite-user-select');
             const memberInviteMessage = document.getElementById('member-invite-message');
 
 
@@ -315,10 +372,9 @@
             let currentUserId = null;
             let currentRoomId = null;
             let currentRoomCreatorId = null;
-            let oldestMessageIdLoaded = null; // Track the oldest message ID loaded for pagination
-            let isLoadingHistory = false; // Flag to prevent multiple history loads
+            let oldestMessageIdLoaded = null;
+            let isLoadingHistory = false;
 
-            // Notification state
             let notifications = [];
             let unreadNotificationCount = 0;
 
@@ -331,32 +387,72 @@
                      .replace(/'/g, "&#039;");
             }
 
-            function addMessageToChat(data, isHistory = false) {
-                // data expected for history: { id, senderUsername, content, messageType, sentAt, userId (sender's ID) }
-                // data expected for live WebSocket: { type: 'message'/'server_message'/'error', sender: '...', text: '...' }
+            // --- Notification Logic ---
+            // Existing notificationPopup is within #chat-container. YAML one is global.
+            // For now, using existing one. Step 4 will add the YAML specified one.
+            const existingNotificationPopup = document.getElementById('notification-popup'); // from original HTML
 
+            function renderNotifications() {
+                notificationListUL.innerHTML = '';
+                notifications.forEach(notif => {
+                    const li = document.createElement('li');
+                    li.textContent = notif.text;
+                    notificationListUL.appendChild(li);
+                });
+
+                if (unreadNotificationCount > 0) {
+                    notificationCounter.textContent = unreadNotificationCount;
+                    notificationCounter.style.display = 'block';
+                } else {
+                    notificationCounter.style.display = 'none';
+                }
+            }
+
+            function addNotification(messageText, messageTimestamp) {
+                if (notifications.length >= 50) {
+                    notifications.shift();
+                }
+                notifications.push({ text: messageText, timestamp: messageTimestamp });
+                // Only increment if popup is not visible or if user is not creator (as they see it differently)
+                // For now, simplified: increment if creator and popup is hidden.
+                if (parseInt(currentUserId) === parseInt(currentRoomCreatorId) && existingNotificationPopup.style.display === 'none') {
+                    unreadNotificationCount++;
+                }
+                renderNotifications();
+            }
+
+            notificationButton.addEventListener('click', () => {
+                if (parseInt(currentUserId) === parseInt(currentRoomCreatorId)) {
+                    existingNotificationPopup.style.display = existingNotificationPopup.style.display === 'none' ? 'block' : 'none';
+                    if (existingNotificationPopup.style.display === 'block') {
+                        unreadNotificationCount = 0;
+                        renderNotifications();
+                    }
+                } else {
+                    console.log("Notifications are only visible to the room owner.");
+                }
+            });
+
+
+            function addMessageToChat(data, isHistory = false) {
                 const messageDiv = document.createElement('div');
                 messageDiv.classList.add('message');
-                if (data.id) { // History messages will have an ID
+                if (data.id) {
                     messageDiv.dataset.messageId = data.id;
                 }
 
-                // Provide defaults to prevent undefined being passed to escapeHtml
                 let SENDER_TEXT = data.senderUsername || data.sender || "System";
                 let CONTENT_TEXT = typeof data.content !== 'undefined' ? data.content : (typeof data.text !== 'undefined' ? data.text : "");
                 let MESSAGE_TYPE = data.messageType || data.type;
-                let SENT_AT = data.sentAt || new Date().toISOString(); // For live messages or history without it
+                let SENT_AT = data.sentAt || new Date().toISOString();
 
                 const isMe = SENDER_TEXT === currentUsername;
 
-                // --- Notification Filtering Logic ---
-                // Check if the message is a join/leave message or a "WebSocket connected" message
                 const isJoinLeaveMessage = (MESSAGE_TYPE === 'system_join' || MESSAGE_TYPE === 'system_leave') ||
                                            (MESSAGE_TYPE === 'server_message' && (CONTENT_TEXT.includes(' has joined the room') || CONTENT_TEXT.includes(' has left the room')));
                 const isWebSocketConnectMessage = MESSAGE_TYPE === 'server_message' && CONTENT_TEXT.startsWith('WebSocket connected to room');
 
                 if (isWebSocketConnectMessage) {
-                    // Completely ignore "WebSocket connected..." messages
                     console.log("Filtered out WebSocket connect message:", CONTENT_TEXT);
                     return;
                 }
@@ -367,20 +463,16 @@
                         try {
                             const parsedContent = JSON.parse(CONTENT_TEXT);
                             notificationText = parsedContent.text || CONTENT_TEXT;
-                        } catch (e) { /* Fallback to CONTENT_TEXT */ }
+                        } catch (e) { /* Fallback */ }
                     }
                     addNotification(escapeHtml(notificationText), SENT_AT);
-                    // Do not display join/leave messages in the main chat, they are now notifications
                     return;
                 }
-                // --- End Notification Filtering ---
 
-
-                // For regular messages or other server messages not filtered out
                 if (MESSAGE_TYPE === 'server_message' || MESSAGE_TYPE === 'error') {
                     messageDiv.classList.add('server-message');
                     messageDiv.textContent = escapeHtml(CONTENT_TEXT);
-                } else { // Regular user text messages
+                } else {
                     const senderSpan = document.createElement('span');
                     senderSpan.classList.add('sender');
                     senderSpan.textContent = escapeHtml(SENDER_TEXT) + (isMe ? " (Me)" : "") + ": ";
@@ -394,10 +486,10 @@
                 }
 
                 if (isHistory) {
-                    chatOutput.insertBefore(messageDiv, chatOutput.firstChild); // Prepend for history
+                    chatOutput.insertBefore(messageDiv, chatOutput.firstChild);
                 } else {
-                    chatOutput.appendChild(messageDiv); // Append for live messages
-                    chatOutput.scrollTop = chatOutput.scrollHeight; // Auto-scroll for new messages
+                    chatOutput.appendChild(messageDiv);
+                    chatOutput.scrollTop = chatOutput.scrollHeight;
                 }
             }
 
@@ -413,62 +505,11 @@
                 setTimeout(() => memberInviteMessage.textContent = '', 3000);
             }
 
-            // --- Notification Logic ---
-            function renderNotifications() {
-                notificationListUL.innerHTML = ''; // Clear existing notifications
-                notifications.forEach(notif => {
-                    const li = document.createElement('li');
-                    li.textContent = notif.text;
-                    // Optionally add timestamp if available in notif object
-                    // if (notif.timestamp) {
-                    //     const timeSpan = document.createElement('span');
-                    //     timeSpan.className = 'notification-timestamp';
-                    //     timeSpan.textContent = new Date(notif.timestamp).toLocaleTimeString();
-                    //     li.appendChild(timeSpan);
-                    // }
-                    notificationListUL.appendChild(li);
-                });
-
-                if (unreadNotificationCount > 0) {
-                    notificationCounter.textContent = unreadNotificationCount;
-                    notificationCounter.style.display = 'block';
-                } else {
-                    notificationCounter.style.display = 'none';
-                }
-            }
-
-            function addNotification(messageText, messageTimestamp) {
-                // Limit the number of stored notifications to, say, 50
-                if (notifications.length >= 50) {
-                    notifications.shift(); // Remove the oldest
-                }
-                notifications.push({ text: messageText, timestamp: messageTimestamp });
-                unreadNotificationCount++;
-                renderNotifications();
-            }
-
-            notificationButton.addEventListener('click', () => {
-                if (parseInt(currentUserId) === parseInt(currentRoomCreatorId)) {
-                    notificationPopup.style.display = notificationPopup.style.display === 'none' ? 'block' : 'none';
-                    if (notificationPopup.style.display === 'block') {
-                        unreadNotificationCount = 0; // Clear counter when popup is opened
-                        renderNotifications(); // Re-render to update counter display
-                    }
-                } else {
-                    // Optionally, inform non-owners they can't view it
-                    // For now, it simply won't open if not owner.
-                    // A small, temporary message could be shown here.
-                    console.log("Notifications are only visible to the room owner.");
-                     // Example: alert("Notifications are only visible to the room owner.");
-                }
-            });
-
-
             // --- UI State Management ---
+            // Adjusted to handle the new mainAppContainer for the two-column layout
             function showAuthUI() {
                 authContainer.style.display = 'block';
-                roomDashboard.style.display = 'none';
-                chatWrapper.style.display = 'none';
+                mainAppContainer.style.display = 'none'; // Hide the new two-column layout
                 mainHeaderBar.style.display = 'none';
                 loginForm.style.display = 'block';
                 registerForm.style.display = 'none';
@@ -476,13 +517,25 @@
                 authMessage.textContent = '';
             }
 
-            async function showRoomDashboardUI(username) {
-                currentUsername = username; // Set from login or session check
+            async function showRoomDashboardUI(username) { // This now means showing the main app with left col active
+                currentUsername = username;
                 authContainer.style.display = 'none';
-                chatWrapper.style.display = 'none';
-                roomDashboard.style.display = 'block';
-                mainHeaderBar.style.display = 'flex';
+                mainAppContainer.style.display = 'flex'; // Show the two-column layout (it's a flex container now)
+                mainHeaderBar.style.display = 'flex'; // Show main header bar
                 userInfoDisplay.textContent = `Logged in as: ${username}`;
+
+                // In the two-column layout, room dashboard is always "visible" in its column.
+                // Chat interface might be hidden on small screens initially by CSS.
+                // roomDashboardContainer.style.display = 'flex'; // Left column (Bootstrap handles this)
+                // chatInterfaceContainer.style.display = 'flex'; // Right column (Bootstrap handles this)
+
+                // Ensure chat is not active from a previous state
+                if (socket) { socket.close(1000, "Returning to dashboard"); socket = null; }
+                currentRoomId = null;
+                currentRoomCreatorId = null;
+                chatWrapper.style.display = 'none'; // Hide chat content within its column
+                roomDashboard.style.display = 'flex'; // Show room dashboard content
+
                 await loadUserRooms();
             }
 
@@ -492,260 +545,166 @@
                 currentRoomCreatorId = roomCreatorId;
                 oldestMessageIdLoaded = null;
                 isLoadingHistory = false;
-                chatOutput.innerHTML = ''; // Clear previous room's messages
-                loadMoreMessagesButton.style.display = 'none'; // Hide load more button for new room initially
+                chatOutput.innerHTML = '';
+                loadMoreMessagesButton.style.display = 'none';
 
-                // Reset notifications for the new room
                 notifications = [];
                 unreadNotificationCount = 0;
-                renderNotifications(); // Update display (clear counter, empty list)
-                notificationPopup.style.display = 'none'; // Ensure popup is hidden
+                renderNotifications();
+                if(existingNotificationPopup) existingNotificationPopup.style.display = 'none';
+
 
                 authContainer.style.display = 'none';
-                roomDashboard.style.display = 'none';
-                chatWrapper.style.display = 'flex';
+                mainAppContainer.style.display = 'flex'; // Ensure main layout is visible
                 mainHeaderBar.style.display = 'flex';
+
+                // On larger screens, both columns are visible.
+                // On smaller screens, CSS from YAML should hide room-list and show chat-interface.
+                // JS needs to ensure the *content* of the columns is correct.
+                roomDashboard.style.display = 'flex'; // Or 'none' if we want to hide it when chat is active, even on large screens.
+                                                      // For now, let's assume it stays visible in its column.
+                                                      // YAML responsive rules will hide the whole column on small screens.
+                chatWrapper.style.display = 'flex'; // Show chat content
 
                 currentRoomDisplay.textContent = `Room: ${escapeHtml(roomName)}`;
                 statusDisplay.textContent = 'Loading history...';
 
-                await loadMessageHistory(roomId); // Initial load of messages
+                await loadMessageHistory(roomId);
 
-                statusDisplay.textContent = 'Connecting to chat...'; // Update status before WebSocket connect
+                statusDisplay.textContent = 'Connecting to chat...';
                 connectWebSocket(username, roomId);
                 updateMemberInviteAreaVisibility();
-                if (memberInviteArea.style.display !== 'none') {
-                    // loadRoomMembers and loadInviteCandidates are called within updateMemberInviteAreaVisibility if needed
-                    // or can be called here again if a specific order is required after WebSocket connection.
-                    // For now, updateMemberInviteAreaVisibility handles it.
-                }
             }
 
-            // --- WebSocket Logic (Step 6) ---
+            // --- WebSocket Logic ---
             function connectWebSocket(username, roomId) {
                 if (socket && (socket.readyState === WebSocket.OPEN || socket.readyState === WebSocket.CONNECTING)) {
-                    console.log("WebSocket closing existing connection before opening new one.");
                     socket.close();
                 }
-
                 socket = new WebSocket(`ws://localhost:8080?username=${encodeURIComponent(username)}&roomId=${roomId}`);
-
                 socket.onopen = function(e) {
                     statusDisplay.textContent = 'Connected';
-                    console.log(`Connection established to room ${roomId}!`);
-                    // Server join messages are now stored, so history will show them.
-                    // Client-only confirmation for WebSocket connection:
                     addMessageToChat({type: 'server_message', text: `WebSocket connected to room '${escapeHtml(currentRoomDisplay.textContent.replace("Room: ",""))}'.`});
                 };
-
                 socket.onmessage = function(event) {
-                    console.log(`Data received from server: ${event.data}`);
                     try {
                         const data = JSON.parse(event.data);
-                        // Expecting live messages to have: { type, sender, text, roomId }
-                        // System messages from server (like join/leave if not handled by history) might be 'server_message'
-                        addMessageToChat(data); // Let addMessageToChat handle different types
-
-                        // If a join/leave type of server_message, and current user is creator, refresh member list
-                        // This is now primarily handled by history, but can be a fallback or for immediate updates.
-                        // The Chat.php currently sends simple text for join/leave broadcasts.
+                        addMessageToChat(data);
                         if (data.type === 'server_message' && (data.text.includes('has joined') || data.text.includes('has left'))) {
                             if (parseInt(currentUserId) === parseInt(currentRoomCreatorId)) {
                                 loadRoomMembers();
-                                loadInviteCandidates(currentRoomId); // Also refresh candidates
+                                loadInviteCandidates(currentRoomId);
                             }
                         }
                     } catch (error) {
-                        console.warn("Received non-JSON message or malformed JSON from WebSocket:", event.data, error);
-                        addMessageToChat({type: 'server_message', text: event.data}); // Display as plain server message
+                        addMessageToChat({type: 'server_message', text: event.data});
                     }
                 };
-
                 socket.onclose = function(event) {
                     statusDisplay.textContent = 'Disconnected';
                     let reason = event.reason || 'Connection closed';
-                    if(event.code === 1000 && event.reason === "User logged out") {
-                        reason = "You have been logged out."; // No chat message needed, handled by logout UI change
-                    } else if(event.code === 1000 && event.reason === "Navigating away") {
-                        reason = "Navigated away from chat."; // No chat message needed
-                    } else {
-                        // For other closures, display the message in chat
-                        addMessageToChat({type: 'server_message', text: `Disconnected: ${reason} (Code: ${event.code})`});
-                    }
-                    console.log(`WebSocket closed: Code=${event.code}, Reason=${reason}, WasClean=${event.wasClean}`);
-
-                     // If not a deliberate clean closure initiated by client's UI actions (logout/navigating away)
-                    if (!(event.code === 1000 && (event.reason === "User logged out" || event.reason === "Navigating away"))) {
+                    if(!(event.code === 1000 && (event.reason === "User logged out" || event.reason === "Navigating away"))) {
                          authMessage.textContent = `Connection issue: ${reason}. Please login or select a room again.`;
-                         // Transition to a state where user can re-initiate. Forcing full logout might be too much if session is fine.
-                         // For now, simplest is to go to auth UI.
-                         showAuthUI();
+                         showAuthUI(); // Or a more graceful reconnect UI
                     }
                     socket = null;
                 };
-
                 socket.onerror = function(error) {
                     statusDisplay.textContent = 'Connection Error!';
-                    console.error(`WebSocket Error: `, error);
-                    addMessageToChat('server', null, `Error: Could not connect to the chat server.`);
+                    addMessageToChat({type: 'server_message', text: `Error: Could not connect to the chat server.`});
                 };
             }
 
-            // --- API Calls & Related Logic (Step 5 & 7) ---
-
+            // --- API Calls & Related Logic ---
             async function loadMessageHistory(roomId, loadOlder = false) {
                 if (isLoadingHistory) return;
-                if (loadOlder && oldestMessageIdLoaded === -1) { // -1 signifies no more messages
-                    loadMoreMessagesButton.style.display = 'none'; // Should already be hidden but ensure
-                    return;
-                }
-
+                if (loadOlder && oldestMessageIdLoaded === -1) return;
                 isLoadingHistory = true;
                 loadMoreMessagesButton.textContent = 'Loading...';
                 loadMoreMessagesButton.disabled = true;
-                if(!loadOlder) loadMoreMessagesButton.style.display = 'none'; // Hide unless it's a "load older" specific request initially
+                if(!loadOlder) loadMoreMessagesButton.style.display = 'none';
 
-                let queryParams = `roomId=${roomId}&limit=20`; // Fetch 20 messages at a time
-                if (loadOlder && oldestMessageIdLoaded) {
-                    queryParams += `&before_message_id=${oldestMessageIdLoaded}`;
-                }
+                let queryParams = `roomId=${roomId}&limit=20`;
+                if (loadOlder && oldestMessageIdLoaded) queryParams += `&before_message_id=${oldestMessageIdLoaded}`;
 
                 try {
                     const response = await fetch(`get_room_messages.php?${queryParams}`);
                     const data = await response.json();
-
                     if (data.success && data.messages) {
                         if (data.messages.length > 0) {
                             const oldScrollHeight = chatOutput.scrollHeight;
                             const firstCurrentlyVisibleMessage = chatOutput.firstChild;
-
-                            data.messages.forEach(msg => {
-                                // API returns { id, roomId, userId, senderUsername, messageType, content, metadata, sentAt }
-                                addMessageToChat(msg, true); // true for isHistory (prepend)
-                            });
-
-                            oldestMessageIdLoaded = data.messages[0].id; // First message in (originally reversed by API) array is oldest of this batch
-
+                            data.messages.forEach(msg => addMessageToChat(msg, true));
+                            oldestMessageIdLoaded = data.messages[0].id;
                             if (loadOlder) {
-                                // Try to maintain scroll position relative to the old top message
-                                if(firstCurrentlyVisibleMessage) {
-                                   chatOutput.scrollTop = firstCurrentlyVisibleMessage.offsetTop - chatOutput.offsetTop;
-                                } else {
-                                   chatOutput.scrollTop = chatOutput.scrollHeight - oldScrollHeight;
-                                }
+                                if(firstCurrentlyVisibleMessage) chatOutput.scrollTop = firstCurrentlyVisibleMessage.offsetTop - chatOutput.offsetTop;
+                                else chatOutput.scrollTop = chatOutput.scrollHeight - oldScrollHeight;
                             } else {
-                                // Scroll to bottom for initial load
                                 chatOutput.scrollTop = chatOutput.scrollHeight;
                             }
-
-                            // Show "Load More" button only if we received a full batch of messages
-                            if (data.messages.length >= 20) {
-                                loadMoreMessagesButton.style.display = 'block';
-                            } else {
-                                loadMoreMessagesButton.style.display = 'none';
-                                oldestMessageIdLoaded = -1; // Mark that we've reached the end
-                            }
-                        } else { // No messages returned
-                            if (loadOlder) {
-                                addMessageToChat({type: 'server', text: "No more messages to load."}, true);
-                            } else {
-                                // Initial load and no messages in room yet
-                                addMessageToChat({type: 'server', text: "No messages in this room yet. Start the conversation!"});
-                            }
-                            loadMoreMessagesButton.style.display = 'none';
-                            oldestMessageIdLoaded = -1;
+                            if (data.messages.length >= 20) loadMoreMessagesButton.style.display = 'block';
+                            else { loadMoreMessagesButton.style.display = 'none'; oldestMessageIdLoaded = -1; }
+                        } else {
+                            if (!loadOlder) addMessageToChat({type: 'server_message', text: "No messages in this room yet."});
+                            loadMoreMessagesButton.style.display = 'none'; oldestMessageIdLoaded = -1;
                         }
-                    } else {
-                        addMessageToChat({type: 'server', text: data.message || "Could not load message history."}, loadOlder);
-                        if(loadOlder) loadMoreMessagesButton.style.display = 'block'; // Allow retry if it was a "load older" attempt
-                    }
-                } catch (error) {
-                    console.error("Error loading message history:", error);
-                    addMessageToChat({type: 'server', text: "Error loading message history."}, loadOlder);
-                     if(loadOlder) loadMoreMessagesButton.style.display = 'block'; // Allow retry
-                } finally {
-                    isLoadingHistory = false;
-                    loadMoreMessagesButton.textContent = 'Load More Messages';
-                    loadMoreMessagesButton.disabled = false;
-                    // If initial load and no messages, ensure button is hidden
-                    if (!loadOlder && oldestMessageIdLoaded === -1) {
-                        loadMoreMessagesButton.style.display = 'none';
-                    }
-                }
+                    } else { addMessageToChat({type: 'server_message', text: data.message || "Could not load history."}, loadOlder); if(loadOlder) loadMoreMessagesButton.style.display = 'block';}
+                } catch (error) { addMessageToChat({type: 'server_message', text: "Error loading history."}, loadOlder); if(loadOlder) loadMoreMessagesButton.style.display = 'block';}
+                finally { isLoadingHistory = false; loadMoreMessagesButton.textContent = 'Load More Messages'; loadMoreMessagesButton.disabled = false; if (!loadOlder && oldestMessageIdLoaded === -1) loadMoreMessagesButton.style.display = 'none';}
             }
 
             async function loadUserRooms() {
                 try {
                     const response = await fetch('list_my_rooms.php');
-                    if (!response.ok) {
-                        throw new Error(`HTTP error! status: ${response.status}`);
-                    }
                     const data = await response.json();
-                    roomListUL.innerHTML = ''; // Clear existing list
+                    roomListUL.innerHTML = ''; // This is the UL for rooms
                     if (data.success && data.rooms.length > 0) {
                         data.rooms.forEach(room => {
                             const li = document.createElement('li');
+                            // Adding list-group-item class for Bootstrap styling if desired, can be handled by custom CSS too
+                            li.className = 'list-group-item list-group-item-action'; // Bootstrap class
                             li.textContent = room.name;
                             li.dataset.roomId = room.id;
                             li.dataset.roomName = room.name;
                             li.dataset.creatorId = room.creator_user_id;
 
                             const creatorSpan = document.createElement('span');
-                            creatorSpan.className = 'room-creator';
+                            creatorSpan.className = 'room-creator float-right small text-muted'; // Bootstrap utility classes
                             creatorSpan.textContent = `Creator: ${room.creator_username}`;
                             li.appendChild(creatorSpan);
 
                             li.addEventListener('click', () => {
+                                // On small screens, room list might be hidden by CSS.
+                                // JS might need to explicitly show chat interface here if CSS doesn't handle it.
                                 showChatUI(currentUsername, room.id, room.name, room.creator_user_id);
                             });
                             roomListUL.appendChild(li);
                         });
                     } else if (data.success && data.rooms.length === 0) {
-                        roomListUL.innerHTML = '<li>No rooms found. Create one!</li>';
+                        roomListUL.innerHTML = '<li class="list-group-item">No rooms found. Create one!</li>';
                     } else {
                         setDashboardMessage(data.message || 'Could not load rooms.', true);
                     }
-                } catch (error) {
-                    console.error('Error loading rooms:', error);
-                    setDashboardMessage('Error loading rooms. Check connection.', true);
-                }
+                } catch (error) { setDashboardMessage('Error loading rooms.', true); }
             }
 
             createRoomForm.addEventListener('submit', async function(e) {
                 e.preventDefault();
                 const roomName = newRoomNameInput.value.trim();
-                if (!roomName) {
-                    setDashboardMessage('Room name cannot be empty.', true);
-                    return;
-                }
+                if (!roomName) { setDashboardMessage('Room name cannot be empty.', true); return; }
                 try {
-                    const response = await fetch('create_room.php', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ roomName })
-                    });
+                    const response = await fetch('create_room.php', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ roomName }) });
                     const data = await response.json();
-                    if (data.success) {
-                        setDashboardMessage(`Room '${data.roomName}' created!`, false);
-                        newRoomNameInput.value = '';
-                        await loadUserRooms(); // Refresh list
-                    } else {
-                        setDashboardMessage(data.message || 'Failed to create room.', true);
-                    }
-                } catch (error) {
-                    console.error('Error creating room:', error);
-                    setDashboardMessage('Error creating room.', true);
-                }
+                    if (data.success) { setDashboardMessage(`Room '${data.roomName}' created!`, false); newRoomNameInput.value = ''; await loadUserRooms(); }
+                    else { setDashboardMessage(data.message || 'Failed to create room.', true); }
+                } catch (error) { setDashboardMessage('Error creating room.', true); }
             });
 
-            // --- Member Management (Step 7) ---
+            // --- Member Management ---
             function updateMemberInviteAreaVisibility() {
                 if (currentUserId && currentRoomCreatorId && parseInt(currentUserId) === parseInt(currentRoomCreatorId)) {
-                    memberInviteArea.style.display = 'flex';
-                    loadInviteCandidates(currentRoomId); // Load candidates when area becomes visible
-                } else {
-                    memberInviteArea.style.display = 'none';
-                }
+                    memberInviteArea.style.display = 'flex'; loadInviteCandidates(currentRoomId); loadRoomMembers();
+                } else { memberInviteArea.style.display = 'none'; }
             }
 
             async function loadInviteCandidates(roomId) {
@@ -753,7 +712,7 @@
                 try {
                     const response = await fetch(`list_invite_candidates.php?roomId=${roomId}`);
                     const data = await response.json();
-                    inviteUserSelect.innerHTML = '<option value="">Select user to invite...</option>'; // Clear and add default
+                    inviteUserSelect.innerHTML = '<option value="">Select user to invite...</option>';
                     if (data.success && data.users) {
                         if (data.users.length === 0) {
                             const option = document.createElement('option');
@@ -764,7 +723,7 @@
                         } else {
                             data.users.forEach(user => {
                                 const option = document.createElement('option');
-                                option.value = user.username; // API `invite_to_room.php` expects username
+                                option.value = user.username;
                                 option.textContent = escapeHtml(user.username);
                                 inviteUserSelect.appendChild(option);
                             });
@@ -825,9 +784,8 @@
                     const data = await response.json();
                     if (data.success) {
                         setMemberInviteMessage(data.message || `User '${selectedUsername}' invited.`, false);
-                        // inviteUserSelect.value = ''; // Reset select - done by loadInviteCandidates
-                        await loadRoomMembers();      // Refresh member list
-                        await loadInviteCandidates(currentRoomId); // Refresh invite candidates
+                        await loadRoomMembers();
+                        await loadInviteCandidates(currentRoomId);
                     } else {
                         setMemberInviteMessage(data.message || 'Failed to invite user.', true);
                     }
@@ -850,7 +808,7 @@
                     const data = await response.json();
                     if (data.success) {
                         setMemberInviteMessage(data.message || `User '${usernameToRemove}' removed.`, false);
-                        await loadRoomMembers(); // Refresh member list
+                        await loadRoomMembers();
                     } else {
                         setMemberInviteMessage(data.message || 'Failed to remove user.', true);
                     }
@@ -867,16 +825,12 @@
                     const response = await fetch('check_session.php');
                     const data = await response.json();
                     if (data.loggedIn && data.username && data.userId) {
-                        currentUserId = data.userId; // Store logged in user's ID
-                        await showRoomDashboardUI(data.username);
+                        currentUserId = data.userId;
+                        await showRoomDashboardUI(data.username); // This will now show the main app view
                     } else {
                         showAuthUI();
                     }
-                } catch (error) {
-                    console.error("Error checking session:", error);
-                    showAuthUI();
-                    authMessage.textContent = "Error contacting server. Please try again later.";
-                }
+                } catch (error) { showAuthUI(); authMessage.textContent = "Error contacting server."; }
             }
 
             showRegisterBtn.addEventListener('click', () => {
@@ -907,13 +861,12 @@
                     });
                     const data = await response.json();
                     if (data.success && data.username && data.userId) {
-                        currentUserId = data.userId; // Store logged in user's ID
+                        currentUserId = data.userId;
                         await showRoomDashboardUI(data.username);
                     } else {
                         authMessage.textContent = data.message || 'Login failed.';
                     }
                 } catch (error) {
-                    console.error("Login error:", error);
                     authMessage.textContent = "Error during login. Please try again.";
                 }
             });
@@ -938,29 +891,103 @@
                         authMessage.textContent = data.message || 'Registration failed.';
                     }
                 } catch (error) {
-                    console.error("Registration error:", error);
                     authMessage.textContent = "Error during registration. Please try again.";
                 }
             });
 
+            // Back to Dashboard button (existing one) logic
             backToDashboardButton.addEventListener('click', async () => {
-                if (socket) {
-                    socket.close(1000, "Navigating away");
-                    socket = null;
-                }
-                currentRoomId = null;
-                currentRoomCreatorId = null;
-                memberInviteArea.style.display = 'none'; // Hide member area
-                inviteUserSelect.innerHTML = '<option value="">Select user to invite...</option>'; // Clear invite select
+                // This button is inside chat_interface. On small screens, it implies going back to room list view.
+                // The YAML responsive CSS should handle hiding chat_interface and showing room-list.
+                // JS just needs to reset state.
+                if (socket) { socket.close(1000, "Navigating away"); socket = null; }
+                currentRoomId = null; currentRoomCreatorId = null;
+                memberInviteArea.style.display = 'none';
+                inviteUserSelect.innerHTML = '<option value="">Select user to invite...</option>';
+                notifications = []; unreadNotificationCount = 0; renderNotifications();
+                if(existingNotificationPopup) existingNotificationPopup.style.display = 'none';
 
-                // Clear notifications when going back to dashboard
-                notifications = [];
-                unreadNotificationCount = 0;
-                renderNotifications();
-                notificationPopup.style.display = 'none';
-
+                // On large screens, showRoomDashboardUI would just refresh rooms.
+                // On small screens, this should effectively switch views.
+                // We need to ensure the #main-app-container is visible, and then let CSS handle columns.
                 await showRoomDashboardUI(currentUsername);
+                // Ensure correct column visibility on small screens after clicking
+                 // This logic might be better handled by CSS or a more robust responsive handler
+                if (window.innerWidth < 768) { // md breakpoint, as per YAML's font change, sm is 576 for layout change
+                    const roomListCol = document.getElementById('room-list-container');
+                    const chatInterfaceCol = document.getElementById('chat-interface');
+                    if (roomListCol) roomListCol.style.display = 'flex'; // Or 'block' or remove 'd-none'
+                    if (chatInterfaceCol) chatInterfaceCol.style.display = 'none'; // Add 'd-none' or set display none
+                    if (actualBackToRoomsBtn) actualBackToRoomsBtn.style.display = 'none';
+                }
             });
+
+            // --- Responsive Layout and "Back to Rooms" Button Logic ---
+            function handleResponsiveDisplayLogic() {
+                const roomListCol = document.getElementById('room-list-container');
+                const chatInterfaceCol = document.getElementById('chat-interface');
+                const mainAppVisible = mainAppContainer.style.display !== 'none' && mainAppContainer.style.display !== '';
+
+                if (!mainAppVisible || !roomListCol || !chatInterfaceCol || !actualBackToRoomsBtn) {
+                    if(actualBackToRoomsBtn) actualBackToRoomsBtn.style.display = 'none'; // Ensure it's hidden if app not visible
+                    return;
+                }
+
+                if (window.innerWidth <= 576) { // sm breakpoint from YAML (where room list is hidden)
+                    // Check if chat view is active (i.e., chatWrapper is visible)
+                    const chatIsActive = chatWrapper.style.display === 'flex' || chatWrapper.style.display === 'block';
+                    if (chatIsActive) {
+                        roomListCol.style.display = 'none'; // Ensure room list is hidden
+                        chatInterfaceCol.style.display = 'flex'; // Ensure chat interface is visible
+                        actualBackToRoomsBtn.style.display = 'block'; // Show "Back to Rooms" button
+                    } else {
+                        // Room dashboard is active on mobile
+                        roomListCol.style.display = 'flex'; // Ensure room list is visible
+                        chatInterfaceCol.style.display = 'none'; // Ensure chat interface is hidden
+                        actualBackToRoomsBtn.style.display = 'none'; // Hide "Back to Rooms" button
+                    }
+                } else { // Larger than sm breakpoint
+                    roomListCol.style.display = 'flex'; // Both columns should be visible
+                    chatInterfaceCol.style.display = 'flex';
+                    actualBackToRoomsBtn.style.display = 'none'; // Hide "Back to Rooms" button
+                }
+            }
+
+            window.addEventListener('resize', handleResponsiveDisplayLogic);
+
+            // Modify showChatUI and showRoomDashboardUI to call handleResponsiveDisplayLogic
+            const originalShowChatUI = showChatUI;
+            showChatUI = async (...args) => {
+                await originalShowChatUI(...args); // Call original function
+                // Original showChatUI already sets chatWrapper.style.display = 'flex'
+                // and roomDashboard.style.display = 'flex' (which might need adjustment for mobile logic)
+                // Let's adjust what showChatUI does for mobile:
+                if (window.innerWidth <= 576) {
+                    document.getElementById('room-list-container').style.display = 'none';
+                    document.getElementById('chat-interface').style.display = 'flex';
+                }
+                handleResponsiveDisplayLogic(); // Update layout based on new state
+            };
+
+            const originalShowRoomDashboardUI = showRoomDashboardUI;
+            showRoomDashboardUI = async (...args) => {
+                await originalShowRoomDashboardUI(...args); // Call original function
+                // Original showRoomDashboardUI sets roomDashboard.style.display = 'block' (or flex)
+                // and chatWrapper.style.display = 'none'.
+                if (window.innerWidth <= 576) {
+                    document.getElementById('room-list-container').style.display = 'flex';
+                    document.getElementById('chat-interface').style.display = 'none';
+                }
+                handleResponsiveDisplayLogic(); // Update layout based on new state
+            };
+
+            if(actualBackToRoomsBtn) {
+                actualBackToRoomsBtn.addEventListener('click', async () => {
+                    // This button is for small screens, to go from chat view to room list view.
+                    // Call showRoomDashboardUI, which should now correctly set displays via handleResponsiveDisplayLogic
+                    await showRoomDashboardUI(currentUsername); // This will refresh rooms and set correct mobile view
+                });
+            }
 
             async function handleLogout(callApi = true) {
                 if (callApi) {
@@ -981,9 +1008,9 @@
                 currentRoomCreatorId = null;
                 chatOutput.innerHTML = '';
                 memberListUL.innerHTML = '';
-                roomListUL.innerHTML = '';
-                showAuthUI();
-                document.getElementById('login-username').value = ''; // Clear login form
+                roomListUL.innerHTML = ''; // Clear the room list UL
+                showAuthUI(); // This will hide mainAppContainer and show auth
+                document.getElementById('login-username').value = '';
                 document.getElementById('login-password').value = '';
             }
 
@@ -992,23 +1019,21 @@
             sendButton.onclick = function() {
                 const message = messageInput.value;
                 if (message.trim() !== '' && socket && socket.readyState === WebSocket.OPEN) {
-                    socket.send(message); // Server now expects plain text for msg
+                    socket.send(message);
                     messageInput.value = '';
                 } else if (!socket || socket.readyState !== WebSocket.OPEN) {
-                    addMessageToChat('server', null, "Not connected. Please select a room or try logging in again.");
+                    addMessageToChat({type: 'server_message', text: "Not connected. Please select a room or try logging in again."});
                 }
             };
 
             loadMoreMessagesButton.addEventListener('click', () => {
-                if (currentRoomId && !isLoadingHistory) { // Ensure not already loading
+                if (currentRoomId && !isLoadingHistory) {
                     loadMessageHistory(currentRoomId, true);
                 }
             });
 
             chatOutput.addEventListener('scroll', () => {
-                // Load more when scrolled to the top and button is visible (meaning more might be available)
                 if (chatOutput.scrollTop === 0 && !isLoadingHistory && oldestMessageIdLoaded !== -1 && loadMoreMessagesButton.style.display === 'block') {
-                    console.log("Scrolled to top, loading more messages...");
                     loadMessageHistory(currentRoomId, true);
                 }
             });
