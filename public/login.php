@@ -8,17 +8,15 @@ header('Content-Type: application/json');
 
 // Only allow POST requests
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-    http_response_code(405); // Method Not Allowed
+    http_response_code(405);
     echo json_encode(['status' => 'error', 'message' => 'Invalid request method. Only POST is allowed.']);
     exit;
 }
 
-// Get raw POST data
 $input = json_decode(file_get_contents('php://input'), true);
 
-// Basic Input Validation
-if (empty($input['login']) || empty($input['password'])) { // 'login' can be username or email
-    http_response_code(400); // Bad Request
+if (empty($input['login']) || empty($input['password'])) {
+    http_response_code(400);
     echo json_encode(['status' => 'error', 'message' => 'Login identifier (username or email) and password are required.']);
     exit;
 }
@@ -30,47 +28,44 @@ $db = new Database();
 try {
     $pdo = $db->getConnection();
 
-    // Fetch user by username or email
-    // This query was confirmed to be working correctly with execute($array).
-    $stmt = $pdo->prepare("SELECT id, username, password_hash FROM users WHERE username = :login OR email = :login LIMIT 1");
-    $stmt->execute([':login' => $loginIdentifier]);
-
-    $user = $stmt->fetch(PDO::FETCH_ASSOC);
+    // Query 1: Fetch user (Known to work)
+    $sqlFetchUser = "SELECT id, username, password_hash FROM users WHERE username = :login OR email = :login LIMIT 1";
+    $stmtFetchUser = $pdo->prepare($sqlFetchUser);
+    $stmtFetchUser->execute([':login' => $loginIdentifier]);
+    $user = $stmtFetchUser->fetch(PDO::FETCH_ASSOC);
 
     if (!$user) {
-        http_response_code(401); // Unauthorized
+        http_response_code(401);
         echo json_encode(['status' => 'error', 'message' => 'Invalid login credentials. (User not found)']);
         exit;
     }
 
-    // Verify password
     if (password_verify($password, $user['password_hash'])) {
-        // Password is correct, generate a session token
         $token = bin2hex(random_bytes(32));
-        $expires_at = date('Y-m-d H:i:s', time() + (86400 * 30)); // Token valid for 30 days
+        $expires_at = date('Y-m-d H:i:s', time() + (86400 * 30));
 
-        // Store the session token in the database
-        // This query was confirmed to be working correctly with execute($array).
-        $sessionStmt = $pdo->prepare("INSERT INTO user_sessions (user_id, token, expires_at) VALUES (:user_id, :token, :expires_at)");
-
+        // Query 2: Insert session (Known to work)
+        $sqlInsertSession = "INSERT INTO user_sessions (user_id, token, expires_at) VALUES (:user_id, :token, :expires_at)";
+        $stmtInsertSession = $pdo->prepare($sqlInsertSession);
         $sessionData = [
             ':user_id' => $user['id'],
             ':token' => $token,
             ':expires_at' => $expires_at
         ];
 
-        if ($sessionStmt->execute($sessionData)) {
-            // Update last_seen for the user
-            // This is the suspected query. Re-typed carefully.
-            // SQL string:
-            $updateSql = "UPDATE users SET last_seen = CURRENT_TIMESTAMP WHERE id = :user_id";
-            $updateLastSeenStmt = $pdo->prepare($updateSql);
+        if ($stmtInsertSession->execute($sessionData)) {
 
-            // Parameter array key:
-            $updateParams = [':user_id' => $user['id']];
+            // Query 3: Update last_seen (Alternative: PHP generated timestamp)
+            $phpTimestamp = date('Y-m-d H:i:s'); // Generate timestamp in PHP
+            $sqlUpdateLastSeen = "UPDATE users SET last_seen = :last_seen_time WHERE id = :user_id";
+            $stmtUpdateLastSeen = $pdo->prepare($sqlUpdateLastSeen);
 
-            // Execute the carefully re-typed query and parameters
-            if ($updateLastSeenStmt->execute($updateParams)) {
+            $updateLastSeenParams = [
+                ':last_seen_time' => $phpTimestamp, // Bind PHP timestamp
+                ':user_id' => $user['id']
+            ];
+
+            if ($stmtUpdateLastSeen->execute($updateLastSeenParams)) {
                 http_response_code(200); // OK
                 echo json_encode([
                     'status' => 'success',
@@ -82,31 +77,29 @@ try {
                     ]
                 ]);
             } else {
-                // This specific else might be hard to reach if execute() throws the HY093
                 http_response_code(500);
-                echo json_encode(['status' => 'error', 'message' => 'Failed to update last_seen. Execute returned false.']);
+                echo json_encode([
+                    'status' => 'error_update_last_seen_execute_false',
+                    'message' => 'Failed to update last_seen (PHP time). Execute returned false.'
+                ]);
             }
         } else {
-            // This specific else might be hard to reach if execute() throws the HY093
             http_response_code(500);
-            echo json_encode(['status' => 'error', 'message' => 'Failed to create session. Execute returned false.']);
+            echo json_encode(['status' => 'error_session_insert_execute_false', 'message' => 'Failed to create session. Execute returned false.']);
         }
     } else {
-        http_response_code(401); // Unauthorized
+        http_response_code(401);
         echo json_encode(['status' => 'error', 'message' => 'Invalid login credentials. (Password mismatch)']);
     }
 
 } catch (PDOException $e) {
-    http_response_code(500); // Internal Server Error
-    // Log detailed error: $e->getMessage()
+    http_response_code(500);
     echo json_encode([
-        'status' => 'error',
-        'message' => 'Database connection error: ' . $e->getMessage(),
-        // 'pdo_trace' => $e->getTraceAsString() // Optionally include trace for HY093
+        'status' => 'error_pdo_exception',
+        'message' => 'Database error: ' . $e->getMessage()
     ]);
-} catch (Exception $e) {
-    http_response_code(500); // Internal Server Error
-    // Log detailed error: $e->getMessage()
-    echo json_encode(['status' => 'error', 'message' => 'An unexpected error occurred: ' . $e->getMessage()]);
+} catch (Exception $eGeneric) {
+    http_response_code(500);
+    echo json_encode(['status' => 'error_generic_exception', 'message' => 'Unexpected error: ' . $eGeneric->getMessage()]);
 }
 ?>
