@@ -223,8 +223,9 @@
                     messageDiv.dataset.messageId = data.id;
                 }
 
-                let SENDER_TEXT = data.senderUsername || data.sender;
-                let CONTENT_TEXT = data.content || data.text;
+                // Provide defaults to prevent undefined being passed to escapeHtml
+                let SENDER_TEXT = data.senderUsername || data.sender || "System";
+                let CONTENT_TEXT = typeof data.content !== 'undefined' ? data.content : (typeof data.text !== 'undefined' ? data.text : "");
                 let MESSAGE_TYPE = data.messageType || data.type;
 
                 const isMe = SENDER_TEXT === currentUsername;
