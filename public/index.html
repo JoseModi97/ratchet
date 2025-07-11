@@ -191,8 +191,8 @@
         .chat-messages {
             display: flex;
             flex-direction: column;
-            max-height: 800px; /* Consider adjusting this based on overall layout */
-            overflow-y: scroll
+            /* max-height: 800px; */ /* Removed: Let flexbox determine height */
+            overflow-y: scroll /* This is relevant if chat-output itself is not the one with flex-grow:1, but it is. overflow-y: auto is on #chat-output directly */
         }
 
         .chat-message-left,
