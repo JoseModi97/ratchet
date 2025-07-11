@@ -32,8 +32,7 @@ try {
 
     // Fetch user by username or email
     $stmt = $pdo->prepare("SELECT id, username, password_hash FROM users WHERE username = :login OR email = :login LIMIT 1");
-    $stmt->bindParam(':login', $loginIdentifier);
-    $stmt->execute();
+    $stmt->execute([':login' => $loginIdentifier]);
 
     $user = $stmt->fetch(PDO::FETCH_ASSOC);
 
@@ -51,15 +50,11 @@ try {
 
         // Store the session token in the database
         $sessionStmt = $pdo->prepare("INSERT INTO user_sessions (user_id, token, expires_at) VALUES (:user_id, :token, :expires_at)");
-        $sessionStmt->bindParam(':user_id', $user['id']);
-        $sessionStmt->bindParam(':token', $token);
-        $sessionStmt->bindParam(':expires_at', $expires_at);
 
-        if ($sessionStmt->execute()) {
+        if ($sessionStmt->execute([':user_id' => $user['id'], ':token' => $token, ':expires_at' => $expires_at])) {
             // Update last_seen for the user
             $updateLastSeenStmt = $pdo->prepare("UPDATE users SET last_seen = CURRENT_TIMESTAMP WHERE id = :user_id");
-            $updateLastSeenStmt->bindParam(':user_id', $user['id']);
-            $updateLastSeenStmt->execute();
+            $updateLastSeenStmt->execute([':user_id' => $user['id']]);
 
             http_response_code(200); // OK
             echo json_encode([
