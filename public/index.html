@@ -3,10 +3,10 @@
 <head>
     <title>Chat App</title>
     <style>
-        body { font-family: Arial, sans-serif; margin: 0; padding: 0; background-color: #f4f4f4; display: flex; justify-content: center; align-items: center; min-height: 100vh; font-size: 14px; }
-        .container { width: 100%; max-width: 700px; margin: 20px; background-color: #fff; border-radius: 8px; box-shadow: 0 0 15px rgba(0,0,0,0.1); display: flex; flex-direction: column; }
+        body { font-family: Arial, sans-serif; margin: 0; padding: 0; background-color: #f4f4f4; display: flex; flex-direction: column; height: 100vh; font-size: 14px; }
+        .container { width: 100%; background-color: #fff; display: flex; flex-direction: column; flex-grow: 1; /* Removed max-width, margin, border-radius, box-shadow */}
 
-        .header-bar { background-color: #007bff; color: white; padding: 15px 20px; display: flex; justify-content: space-between; align-items: center; border-top-left-radius: 8px; border-top-right-radius: 8px; }
+        .header-bar { background-color: #007bff; color: white; padding: 15px 20px; display: flex; justify-content: space-between; align-items: center; /* Removed border-top-left-radius, border-top-right-radius */ }
         .header-bar #user-info { font-weight: bold; }
         .header-bar #logout-button { background-color: #dc3545; color: white; border: none; padding: 8px 12px; border-radius: 4px; cursor: pointer; }
         .header-bar #logout-button:hover { background-color: #c82333; }
@@ -103,6 +103,74 @@
         #invite-form button:hover { background-color: #138496; }
         #member-invite-message { font-size: 0.8em; color: green; margin-top: 5px; min-height: 1em;}
 
+        /* Mobile Responsiveness */
+        @media (max-width: 768px) {
+            body { font-size: 13px; } /* Slightly smaller base font */
+
+            .header-bar, #chat-header, #input-area { padding: 10px; }
+            #auth-container, #room-dashboard { padding: 15px; }
+
+            #room-dashboard h2 { font-size: 1.5em; }
+            #room-dashboard h3 { font-size: 1.1em; }
+            #create-room-form input[type="text"] { width: calc(100% - 90px); /* Adjust based on button width */ }
+            #room-list li { padding: 8px; }
+
+
+            #chat-content-wrapper { flex-direction: column; }
+            #member-invite-area {
+                width: 100%; /* Take full width */
+                border-left: none; /* Remove left border */
+                border-top: 1px solid #ddd; /* Add top border */
+                max-height: 250px; /* Limit height when stacked */
+                overflow-y: auto;
+            }
+            #member-invite-area h4 { font-size: 1em; margin-bottom: 8px; }
+            #member-list { max-height: 120px; /* Adjust height for stacked view */ }
+            #invite-form select#invite-user-select, #invite-form button { font-size: 0.85em; padding: 8px; }
+
+
+            #chat-output { padding: 10px; }
+            .message .sender { font-size: 0.95em; }
+            .message .text { font-size: 0.9em; }
+
+            #message-input { padding: 8px; margin-right: 8px; }
+            #send-button, #back-to-dashboard, .header-bar #logout-button { padding: 8px 12px; font-size: 0.9em; }
+
+            /* Auth forms adjustments */
+            .auth-form input[type="text"], .auth-form input[type="password"] { padding: 12px; }
+            .auth-form button[type="submit"] { padding: 12px; font-size: 1em; }
+
+            /* Notification popup adjustments for smaller screens */
+            #notification-popup {
+                top: 5px;
+                right: 5px;
+                width: calc(100% - 10px); /* More screen width */
+                max-height: calc(100% - 50px); /* Adjust max height */
+                font-size: 0.85em;
+            }
+             #notification-button { font-size: 1.1em; }
+        }
+
+        @media (max-width: 480px) {
+            body { font-size: 12px; }
+            .header-bar, #chat-header, #input-area { padding: 8px; }
+            #auth-container, #room-dashboard { padding: 10px; }
+
+            #create-room-form input[type="text"] { width: calc(100% - 80px); } /* Further adjust */
+            #create-room-form button { padding: 8px 10px; }
+
+
+            #chat-header #current-room-display { font-size: 0.9em; }
+            #back-to-dashboard { font-size: 0.8em; padding: 6px 8px; }
+            .header-bar #logout-button { font-size: 0.8em; padding: 6px 8px; }
+
+
+            #send-button { padding: 8px 15px; }
+
+            /* Make member/invite area more compact if it's visible */
+            #member-invite-area { max-height: 200px; }
+            #member-list { max-height: 100px; }
+        }
     </style>
 </head>
 <body>
