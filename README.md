@@ -56,19 +56,19 @@ The application is composed of a PHP backend that handles user authentication an
 
 2. **Set up the database**:
    - Create a new MySQL database.
-   - Import the `database.sql` file to create the necessary tables.
+   - Run the `database/init_db.php` script to create the necessary tables.
 
 3. **Configure the backend**:
-   - Rename `config.example.php` to `config.php`.
-   - Update `config.php` with your database credentials.
+   - In the `public` directory, create a copy of `config.php` and name it `config.local.php`.
+   - Update `config.local.php` with your database credentials.
 
 4. **Start the WebSocket server**:
    ```bash
-   php server.php
+   php bin/server.php
    ```
 
 5. **Open the application**:
-   - Open `index.html` in your web browser.
+   - Open `public/index.html` in your web browser.
 
 ## Usage
 
