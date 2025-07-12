@@ -629,23 +629,29 @@
 
                 socket.onclose = function(event) {
                     statusDisplay.textContent = 'Disconnected';
-                    let reason = event.reason || 'Connection closed';
-                    if(event.code === 1000 && event.reason === "User logged out") {
-                        reason = "You have been logged out."; // No chat message needed, handled by logout UI change
-                    } else if(event.code === 1000 && event.reason === "Navigating away") {
-                        reason = "Navigated away from chat."; // No chat message needed
-                    } else {
-                        // For other closures, display the message in chat
-                        addMessageToChat({type: 'server_message', text: `Disconnected: ${reason} (Code: ${event.code})`});
-                    }
-                    console.log(`WebSocket closed: Code=${event.code}, Reason=${reason}, WasClean=${event.wasClean}`);
+                    // Determine if a specific reason was provided by the server or if it's an unclear closure
+                    let specificReasonProvided = event.reason && event.reason.trim() !== "";
+                    let reasonForDisplay = specificReasonProvided ? event.reason : 'Chat server unavailable or connection failed unexpectedly.';
 
-                     // If not a deliberate clean closure initiated by client's UI actions (logout/navigating away)
-                    if (!(event.code === 1000 && (event.reason === "User logged out" || event.reason === "Navigating away"))) {
-                         authMessage.textContent = `Connection issue: ${reason}. Please login or select a room again.`;
-                         // Transition to a state where user can re-initiate. Forcing full logout might be too much if session is fine.
-                         // For now, simplest is to go to auth UI.
-                         showAuthUI();
+                    // Log the original details from the event
+                    console.log(`WebSocket closed: Code=${event.code}, Original Reason='${event.reason || 'N/A'}', Effective Reason='${reasonForDisplay}', WasClean=${event.wasClean}`);
+
+                    // Special handling for client-initiated, expected closures (logout, navigation)
+                    // These typically don't result in showing authUI with an error message.
+                    if (event.code === 1000 && event.reason === "User logged out") {
+                        // Handled by handleLogout(), which calls showAuthUI() without an error message.
+                        // No explicit authMessage set here.
+                    } else if (event.code === 1000 && event.reason === "Navigating away") {
+                        // Handled by backToDashboardButton, which changes UI without error.
+                        // No explicit authMessage set here.
+                    } else {
+                        // For all other closures (unexpected, server-initiated errors, or unclear network issues)
+                        // Add a message to chat output (might only be visible briefly or not at all if UI changes immediately)
+                        addMessageToChat({type: 'server_message', text: `Disconnected: ${reasonForDisplay} (Code: ${event.code})`});
+
+                        // Set the message for the login screen and show the login UI
+                        authMessage.textContent = `Connection issue: ${reasonForDisplay}. Please login or select a room again.`;
+                        showAuthUI();
                     }
                     socket = null;
                 };
