@@ -646,12 +646,13 @@
                         // No explicit authMessage set here.
                     } else {
                         // For all other closures (unexpected, server-initiated errors, or unclear network issues)
-                        // Add a message to chat output (might only be visible briefly or not at all if UI changes immediately)
-                        addMessageToChat({type: 'server_message', text: `Disconnected: ${reasonForDisplay} (Code: ${event.code})`});
-
-                        // Set the message for the login screen and show the login UI
-                        authMessage.textContent = `Connection issue: ${reasonForDisplay}. Please login or select a room again.`;
-                        showAuthUI();
+                        // For all other closures (unexpected, server-initiated errors, or unclear network issues)
+                        // Display message in chat area and update status, but do not log out.
+                        const closeMessage = `WebSocket connection closed. Chat is unavailable. (Code: ${event.code}, Reason: ${reasonForDisplay})`;
+                        addMessageToChat({type: 'error', text: closeMessage}); // Using 'error' type for consistency
+                        statusDisplay.textContent = 'Chat unavailable - Connection closed';
+                        console.log(`WebSocket closed unexpectedly: ${closeMessage}`);
+                        // No longer calling showAuthUI() here, and not setting authMessage.textContent
                     }
                     socket = null;
                 };
@@ -659,7 +660,8 @@
                 socket.onerror = function(error) {
                     statusDisplay.textContent = 'Connection Error!';
                     console.error(`WebSocket Error: `, error);
-                    addMessageToChat('server', null, `Error: Could not connect to the chat server.`);
+                    // Correctly structured call to addMessageToChat
+                    addMessageToChat({type: 'error', text: 'Error: Could not connect to the chat server. WebSocket is unavailable.'});
                 };
             }
 
