@@ -782,6 +782,18 @@
             // If `roomId` is provided, it's for a room-specific context.
             // If `roomId` is NOT provided, it's a general connection for DMs.
             function connectWebSocket(username, targetRoomId = null) {
+                if (!username) {
+                    console.error("connectWebSocket called without a valid username. Aborting WebSocket connection attempt. Current username state:", currentUsername);
+                    // Potentially force logout or show auth UI if this happens post-login state.
+                    // For now, just preventing the connection.
+                    if (mainAppContainer.style.display === 'flex' || mainAppContainer.style.display === 'block') {
+                        // If user is supposed to be in the main app, this is a critical issue.
+                        alert("Chat connection error: Username is missing. Please try logging out and in again.");
+                        handleLogout(); // Attempt a clean logout
+                    }
+                    return;
+                }
+
                 if (socket && socket.readyState === WebSocket.OPEN) {
                     // If trying to connect to a different context (e.g. different room, or general vs room)
                     if (socket.targetRoomId !== targetRoomId) {
@@ -1293,7 +1305,7 @@
                     const data = await response.json();
                     if (data.loggedIn && data.username && data.userId) {
                         currentUserId = data.userId; // Store logged in user's ID
-                        await showRoomDashboardUI(data.username);
+                        await showMainAppUI(data.username);
                     } else {
                         showAuthUI();
                     }
@@ -1333,7 +1345,7 @@
                     const data = await response.json();
                     if (data.success && data.username && data.userId) {
                         currentUserId = data.userId; // Store logged in user's ID
-                        await showRoomDashboardUI(data.username);
+                        await showMainAppUI(data.username);
                     } else {
                         authMessage.textContent = data.message || 'Login failed.';
                     }

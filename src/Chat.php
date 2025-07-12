@@ -496,3 +496,4 @@ class Chat implements MessageComponentInterface {
         $conn->close(1011, "Internal server error"); // 1011 indicates server error preventing fulfillment of request.
     }
 }
+?>
