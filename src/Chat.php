@@ -266,7 +266,7 @@ class Chat implements MessageComponentInterface {
         // If real-time messageId is needed, this structure would need `messageId`.
         $messageData = [
             'type' => 'message',
-            'sender' => $senderUsername,
+            'senderUsername' => $senderUsername,
             'text' => $msg,
             'roomId' => $roomId
             // If we wanted to send the ID in real-time: 'messageId' => $messageId
