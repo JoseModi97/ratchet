@@ -818,6 +818,7 @@
                 console.log(`Connecting WebSocket to: ${wsUrl}`);
                 socket = new WebSocket(wsUrl);
                 socket.targetRoomId = targetRoomId; // Store what this socket is for
+                const currentSocket = socket; // Capture the current socket object for use in handlers
 
                 socket.onopen = function(e) {
                     console.log(`WebSocket connected. Target Room ID: ${targetRoomId || 'N/A (DM mode)'}`);
@@ -873,31 +874,35 @@
                 };
 
                 socket.onclose = function(event) {
-                    console.log(`WebSocket closed. Code: ${event.code}, Reason: '${event.reason}', Clean: ${event.wasClean}, TargetRoom: ${socket.targetRoomId}`);
-                    const targetWasRoom = socket.targetRoomId; // Capture before socket is nulled
+                    // Use the captured currentSocket variable, not the global one.
+                    const closedSocketTargetId = currentSocket.targetRoomId;
+                    console.log(`WebSocket closed. Code: ${event.code}, Reason: '${event.reason}', Clean: ${event.wasClean}, TargetRoom: ${closedSocketTargetId}`);
 
-                    if (targetWasRoom) { // If this was a room-specific connection
+                    if (closedSocketTargetId) { // If this was a room-specific connection
                         statusDisplay.textContent = 'Disconnected from room';
                     } else { // General DM connection closed
                         console.log("General WebSocket connection for DMs closed.");
                     }
-                    // Do not automatically call showAuthUI unless it's an unrecoverable global error.
-                    // Client might try to reconnect or user might navigate.
-                    if (event.code !== 1000 && event.code !== 1005) { // 1000=Normal, 1005=No status
+
+                    if (event.code !== 1000 && event.code !== 1005) {
                         const errorMsg = `WebSocket disconnected unexpectedly (Code: ${event.code}). Chat might be unavailable.`;
-                        if(targetWasRoom && currentRoomId === targetWasRoom) {
+                        if(closedSocketTargetId && currentRoomId === closedSocketTargetId) {
                             addRoomMessageToChat({type: 'error', text: errorMsg});
-                        } else if (!targetWasRoom && dmSection.classList.contains('active')) {
-                            // If in DM view, maybe show error in DM area or alert
+                        } else if (!closedSocketTargetId && dmSection.classList.contains('active')) {
                             alert(errorMsg);
                         }
                     }
-                    socket = null; // Important to allow re-connection attempts
+
+                    // Only null the global socket variable if it's the one that just closed.
+                    if (socket === currentSocket) {
+                        socket = null;
+                    }
                 };
 
                 socket.onerror = function(error) {
-                    console.error(`WebSocket Error (TargetRoom: ${socket.targetRoomId}): `, error);
-                    if (socket.targetRoomId) {
+                    const errorSocketTargetId = this.targetRoomId; // 'this' refers to the socket triggering the error
+                    console.error(`WebSocket Error (TargetRoom: ${errorSocketTargetId}): `, error);
+                    if (errorSocketTargetId) {
                         statusDisplay.textContent = 'Connection Error!';
                         addRoomMessageToChat({type: 'error', text: 'Error connecting to room chat.'});
                     } else {
@@ -964,7 +969,10 @@
 
                 try {
                     const response = await fetch(`get_direct_messages.php?${queryParams}`);
-                    const data = await response.json();
+                    const rawText = await response.text(); // Get raw text first for debugging
+                    console.log("Raw response from get_direct_messages.php:", rawText);
+                    const data = JSON.parse(rawText); // Manually parse
+
                     if (data.success && data.messages) {
                         if (data.messages.length > 0) {
                             data.messages.forEach(msg => addDirectMessageToChat(msg, true)); // Prepend history
