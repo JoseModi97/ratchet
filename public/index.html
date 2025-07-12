@@ -841,6 +841,7 @@
                 dmChatWith.textContent = `Chat with ${username}`;
                 currentDMUserId = userId;
                 loadDMMessages(userId);
+                connectWebSocket(currentUsername, 0); // Use a dummy room ID for DM
             }
 
             createRoomForm.addEventListener('submit', async function(e) {

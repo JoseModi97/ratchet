@@ -119,9 +119,9 @@ class Chat implements MessageComponentInterface {
         $username = $queryParams['username'] ?? null;
         $roomIdStr = $queryParams['roomId'] ?? null;
 
-        if (empty($username) || empty($roomIdStr)) {
-            $this->sendErrorMessage($conn, "Username and roomId parameters are required.", 4001, "Username and roomId required");
-            echo "Connection attempt without username or roomId. ({$conn->resourceId}) Closing.\n";
+        if (empty($username)) {
+            $this->sendErrorMessage($conn, "Username parameter is required.", 4001, "Username required");
+            echo "Connection attempt without username. ({$conn->resourceId}) Closing.\n";
             return;
         }
 
@@ -145,7 +145,7 @@ class Chat implements MessageComponentInterface {
             return;
         }
 
-        if (!$this->isUserMemberOfRoom($userId, $roomId)) {
+        if ($roomId !== 0 && !$this->isUserMemberOfRoom($userId, $roomId)) {
             $this->sendErrorMessage($conn, "User '{$username}' is not a member of room {$roomId}.", 4004, "Not a room member");
             echo "User '{$username}' (ID: {$userId}) is not a member of room {$roomId}. Connection {$conn->resourceId} denied.\n";
             return;
@@ -298,15 +298,17 @@ class Chat implements MessageComponentInterface {
         }
 
         // Find the recipient's connection and send the message
-        foreach ($this->clients as $client) {
-            if (isset($client->userId) && $client->userId == $receiverId) {
-                $client->send(json_encode([
-                    'type' => 'dm',
-                    'sender_id' => $senderId,
-                    'message' => $message,
-                    'sender_username' => $from->username
-                ]));
-                break;
+        foreach ($this->rooms as $room) {
+            foreach ($room as $client) {
+                if (isset($client->userId) && $client->userId == $receiverId) {
+                    $client->send(json_encode([
+                        'type' => 'dm',
+                        'sender_id' => $senderId,
+                        'message' => $message,
+                        'sender_username' => $from->username
+                    ]));
+                    return; // Exit after sending
+                }
             }
         }
     }
