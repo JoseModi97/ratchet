@@ -287,7 +287,7 @@
                         &#128276; <!-- Bell icon -->
                         <span id="notification-counter" style="position: absolute; top: -5px; right: -5px; background-color: red; color: white; border-radius: 50%; padding: 2px 5px; font-size: 0.7em; display: none;">0</span>
                     </button>
-                    <button id="back-to-dashboard">Back to Rooms</button>
+                        <button id="back-to-dashboard">Back to Dashboard</button>
                 </div>
             </div>
             <div id="status">Connecting...</div>
@@ -324,6 +324,17 @@
                 </div>
             </div>
         </div>
+            <div id="dm-chat-wrapper" style="display: none;">
+                <div id="dm-chat-header">
+                    <span id="dm-chat-with"></span>
+                    <button id="back-to-dashboard-dm">Back to Dashboard</button>
+                </div>
+                <div id="dm-chat-output"></div>
+                <div id="dm-input-area">
+                    <input type="text" id="dm-message-input" placeholder="Type a message...">
+                    <button id="dm-send-button">Send</button>
+                </div>
+            </div>
     </div>
 
     <script>
@@ -809,8 +820,7 @@
                                 li.dataset.userId = user.id;
                                 li.style.cursor = 'pointer';
                                 li.addEventListener('click', () => {
-                                    // Placeholder for starting a DM chat
-                                    console.log(`Starting DM with user ${user.id}`);
+                                    showDMChatUI(user.id, user.username);
                                 });
                                 userListDM.appendChild(li);
                             }
@@ -822,6 +832,15 @@
                     console.error('Error loading users for DM:', error);
                     userListDM.innerHTML = '<li>Error loading users.</li>';
                 }
+            }
+
+            function showDMChatUI(userId, username) {
+                roomDashboard.style.display = 'none';
+                chatWrapper.style.display = 'none';
+                dmChatWrapper.style.display = 'block';
+                dmChatWith.textContent = `Chat with ${username}`;
+                currentDMUserId = userId;
+                loadDMMessages(userId);
             }
 
             createRoomForm.addEventListener('submit', async function(e) {
@@ -1134,6 +1153,58 @@
 
             // Initial Load
             checkUserSession();
+
+            const dmChatWrapper = document.getElementById('dm-chat-wrapper');
+            const dmChatWith = document.getElementById('dm-chat-with');
+            const dmChatOutput = document.getElementById('dm-chat-output');
+            const dmMessageInput = document.getElementById('dm-message-input');
+            const dmSendButton = document.getElementById('dm-send-button');
+            const backToDashboardDMButton = document.getElementById('back-to-dashboard-dm');
+            let currentDMUserId = null;
+
+            async function loadDMMessages(userId) {
+                try {
+                    const response = await fetch(`direct_message.php?receiver_id=${userId}`);
+                    const data = await response.json();
+                    dmChatOutput.innerHTML = '';
+                    if (data.success && data.messages) {
+                        data.messages.forEach(msg => {
+                            const div = document.createElement('div');
+                            div.textContent = `${msg.sender_username}: ${msg.message}`;
+                            dmChatOutput.appendChild(div);
+                        });
+                    }
+                } catch (error) {
+                    console.error('Error loading DM messages:', error);
+                }
+            }
+
+            dmSendButton.addEventListener('click', async () => {
+                const message = dmMessageInput.value;
+                if (message.trim() === '') return;
+
+                const data = {
+                    type: 'dm',
+                    receiver_id: currentDMUserId,
+                    message: message
+                };
+
+                if (socket && socket.readyState === WebSocket.OPEN) {
+                    socket.send(JSON.stringify(data));
+                    dmMessageInput.value = '';
+                    const div = document.createElement('div');
+                    div.textContent = `You: ${message}`;
+                    dmChatOutput.appendChild(div);
+                } else {
+                    console.error('Socket not connected');
+                }
+            });
+
+            backToDashboardDMButton.addEventListener('click', () => {
+                dmChatWrapper.style.display = 'none';
+                showRoomDashboardUI(currentUsername);
+            });
+
         });
     </script>
 </body>
