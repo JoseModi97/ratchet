@@ -256,26 +256,17 @@
 
         <!-- Room Dashboard -->
         <div id="room-dashboard">
-            <h2>Dashboard</h2>
+            <h2>Room Dashboard</h2>
             <div id="dashboard-message"></div>
-            <div id="dashboard-content" style="display: flex; flex-direction: row; gap: 20px;">
-                <div id="room-section" style="flex: 1;">
-                    <h3>Rooms</h3>
-                    <form id="create-room-form">
-                        <input type="text" id="new-room-name" placeholder="Enter room name" required>
-                        <button type="submit">Create Room</button>
-                    </form>
-                    <ul id="room-list">
-                        <!-- Room items will be populated by JS -->
-                    </ul>
-                </div>
-                <div id="dm-section" style="flex: 1;">
-                    <h3>Direct Messages</h3>
-                    <ul id="user-list-dm">
-                        <!-- User list for DM will be populated by JS -->
-                    </ul>
-                </div>
-            </div>
+            <form id="create-room-form">
+                <h3>Create New Room</h3>
+                <input type="text" id="new-room-name" placeholder="Enter room name" required>
+                <button type="submit">Create Room</button>
+            </form>
+            <h3>Your Rooms</h3>
+            <ul id="room-list">
+                <!-- Room items will be populated by JS -->
+            </ul>
         </div>
 
         <!-- Chat Application -->
@@ -287,7 +278,7 @@
                         &#128276; <!-- Bell icon -->
                         <span id="notification-counter" style="position: absolute; top: -5px; right: -5px; background-color: red; color: white; border-radius: 50%; padding: 2px 5px; font-size: 0.7em; display: none;">0</span>
                     </button>
-                        <button id="back-to-dashboard">Back to Dashboard</button>
+                    <button id="back-to-dashboard">Back to Rooms</button>
                 </div>
             </div>
             <div id="status">Connecting...</div>
@@ -324,17 +315,6 @@
                 </div>
             </div>
         </div>
-            <div id="dm-chat-wrapper" style="display: none;">
-                <div id="dm-chat-header">
-                    <span id="dm-chat-with"></span>
-                    <button id="back-to-dashboard-dm">Back to Dashboard</button>
-                </div>
-                <div id="dm-chat-output"></div>
-                <div id="dm-input-area">
-                    <input type="text" id="dm-message-input" placeholder="Type a message...">
-                    <button id="dm-send-button">Send</button>
-                </div>
-            </div>
     </div>
 
     <script>
@@ -358,7 +338,6 @@
             const createRoomForm = document.getElementById('create-room-form');
             const newRoomNameInput = document.getElementById('new-room-name');
             const roomListUL = document.getElementById('room-list');
-            const userListDM = document.getElementById('user-list-dm');
             const dashboardMessage = document.getElementById('dashboard-message');
 
             // UI Elements - Chat
@@ -571,7 +550,6 @@
                 mainHeaderBar.style.display = 'flex';
                 userInfoDisplay.textContent = `Logged in as: ${username}`;
                 await loadUserRooms();
-                await loadUsersForDM();
             }
 
             async function showChatUI(username, roomId, roomName, roomCreatorId) {
@@ -630,11 +608,6 @@
                     console.log(`Data received from server: ${event.data}`);
                     try {
                         const data = JSON.parse(event.data);
-                    if (data.type === 'dm') {
-                        const div = document.createElement('div');
-                        div.textContent = `${data.sender_username}: ${data.message}`;
-                        dmChatOutput.appendChild(div);
-                    } else {
                         // Expecting live messages to have: { type, sender, text, roomId }
                         // System messages from server (like join/leave if not handled by history) might be 'server_message'
                         addMessageToChat(data); // Let addMessageToChat handle different types
@@ -646,7 +619,6 @@
                             if (parseInt(currentUserId) === parseInt(currentRoomCreatorId)) {
                                 loadRoomMembers();
                                 loadInviteCandidates(currentRoomId); // Also refresh candidates
-                            }
                             }
                         }
                     } catch (error) {
@@ -810,48 +782,6 @@
                 } catch (error) {
                     console.error('Error loading rooms:', error);
                     setDashboardMessage('Error loading rooms. Check connection.', true);
-                }
-            }
-
-            async function loadUsersForDM() {
-                try {
-                    const response = await fetch('list_users.php');
-                    const data = await response.json();
-                    userListDM.innerHTML = '';
-                    if (data.success && data.users) {
-                        data.users.forEach(user => {
-                            if (user.id !== currentUserId) {
-                                const li = document.createElement('li');
-                                li.innerHTML = `<a href="#" data-user-id="${user.id}" data-username="${user.username}">${user.username}</a>`;
-                                li.style.cursor = 'pointer';
-                                li.addEventListener('click', (e) => {
-                                    e.preventDefault();
-                                    const target = e.target;
-                                    const userId = target.getAttribute('data-user-id');
-                                    const username = target.getAttribute('data-username');
-                                    showDMChatUI(userId, username);
-                                });
-                                userListDM.appendChild(li);
-                            }
-                        });
-                    } else {
-                        userListDM.innerHTML = '<li>Could not load users.</li>';
-                    }
-                } catch (error) {
-                    console.error('Error loading users for DM:', error);
-                    userListDM.innerHTML = '<li>Error loading users.</li>';
-                }
-            }
-
-            function showDMChatUI(userId, username) {
-                roomDashboard.style.display = 'none';
-                chatWrapper.style.display = 'none';
-                dmChatWrapper.style.display = 'flex';
-                dmChatWith.textContent = `Chat with ${username}`;
-                currentDMUserId = userId;
-                loadDMMessages(userId);
-                if (!socket || socket.readyState !== WebSocket.OPEN) {
-                    connectWebSocket(currentUsername, 0); // Use a dummy room ID for DM
                 }
             }
 
@@ -1165,58 +1095,6 @@
 
             // Initial Load
             checkUserSession();
-
-            const dmChatWrapper = document.getElementById('dm-chat-wrapper');
-            const dmChatWith = document.getElementById('dm-chat-with');
-            const dmChatOutput = document.getElementById('dm-chat-output');
-            const dmMessageInput = document.getElementById('dm-message-input');
-            const dmSendButton = document.getElementById('dm-send-button');
-            const backToDashboardDMButton = document.getElementById('back-to-dashboard-dm');
-            let currentDMUserId = null;
-
-            async function loadDMMessages(userId) {
-                try {
-                    const response = await fetch(`direct_message.php?receiver_id=${userId}`);
-                    const data = await response.json();
-                    dmChatOutput.innerHTML = '';
-                    if (data.success && data.messages) {
-                        data.messages.forEach(msg => {
-                            const div = document.createElement('div');
-                            div.textContent = `${msg.sender_username}: ${msg.message}`;
-                            dmChatOutput.appendChild(div);
-                        });
-                    }
-                } catch (error) {
-                    console.error('Error loading DM messages:', error);
-                }
-            }
-
-            dmSendButton.addEventListener('click', async () => {
-                const message = dmMessageInput.value;
-                if (message.trim() === '') return;
-
-                const data = {
-                    type: 'dm',
-                    receiver_id: currentDMUserId,
-                    message: message
-                };
-
-                if (socket && socket.readyState === WebSocket.OPEN) {
-                    socket.send(JSON.stringify(data));
-                    dmMessageInput.value = '';
-                    const div = document.createElement('div');
-                    div.textContent = `You: ${message}`;
-                    dmChatOutput.appendChild(div);
-                } else {
-                    console.error('Socket not connected');
-                }
-            });
-
-            backToDashboardDMButton.addEventListener('click', () => {
-                dmChatWrapper.style.display = 'none';
-                showRoomDashboardUI(currentUsername);
-            });
-
         });
     </script>
 </body>

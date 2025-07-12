@@ -119,9 +119,9 @@ class Chat implements MessageComponentInterface {
         $username = $queryParams['username'] ?? null;
         $roomIdStr = $queryParams['roomId'] ?? null;
 
-        if (empty($username)) {
-            $this->sendErrorMessage($conn, "Username parameter is required.", 4001, "Username required");
-            echo "Connection attempt without username. ({$conn->resourceId}) Closing.\n";
+        if (empty($username) || empty($roomIdStr)) {
+            $this->sendErrorMessage($conn, "Username and roomId parameters are required.", 4001, "Username and roomId required");
+            echo "Connection attempt without username or roomId. ({$conn->resourceId}) Closing.\n";
             return;
         }
 
@@ -145,7 +145,7 @@ class Chat implements MessageComponentInterface {
             return;
         }
 
-        if ($roomId !== 0 && !$this->isUserMemberOfRoom($userId, $roomId)) {
+        if (!$this->isUserMemberOfRoom($userId, $roomId)) {
             $this->sendErrorMessage($conn, "User '{$username}' is not a member of room {$roomId}.", 4004, "Not a room member");
             echo "User '{$username}' (ID: {$userId}) is not a member of room {$roomId}. Connection {$conn->resourceId} denied.\n";
             return;
@@ -236,13 +236,6 @@ class Chat implements MessageComponentInterface {
     }
 
     public function onMessage(ConnectionInterface $from, $msg) {
-        $data = json_decode($msg, true);
-
-        if (isset($data['type']) && $data['type'] === 'dm') {
-            $this->handleDirectMessage($from, $data);
-            return;
-        }
-
         if (!isset($from->username) || !isset($from->roomId) || !isset($from->userId)) { // Added userId check
             $this->sendErrorMessage($from, "Connection not fully initialized. Message rejected.", 4007, "Connection not initialized");
             echo "Message from uninitialized connection (resourceId {$from->resourceId}). Ignoring.\n";
@@ -280,37 +273,6 @@ class Chat implements MessageComponentInterface {
         ];
 
         $this->broadcastToRoom($roomId, $messageData);
-    }
-
-    private function handleDirectMessage(ConnectionInterface $from, array $data) {
-        $senderId = $from->userId;
-        $receiverId = $data['receiver_id'];
-        $message = $data['message'];
-
-        // Store the direct message
-        try {
-            $stmt = $this->pdo->prepare("INSERT INTO direct_messages (sender_id, receiver_id, message) VALUES (?, ?, ?)");
-            $stmt->execute([$senderId, $receiverId, $message]);
-        } catch (PDOException $e) {
-            $this->sendErrorMessage($from, "Error sending message.");
-            echo "Error storing direct message: " . $e->getMessage() . "\n";
-            return;
-        }
-
-        // Find the recipient's connection and send the message
-        foreach ($this->rooms as $room) {
-            foreach ($room as $client) {
-                if (isset($client->userId) && $client->userId == $receiverId) {
-                    $client->send(json_encode([
-                        'type' => 'dm',
-                        'sender_id' => $senderId,
-                        'message' => $message,
-                        'sender_username' => $from->username
-                    ]));
-                    return; // Exit after sending
-                }
-            }
-        }
     }
 
     public function onClose(ConnectionInterface $conn) {
