@@ -29,6 +29,21 @@ try {
     ");
 
     echo "Table 'users' created successfully or already exists in '$db' database.\n";
+
+    // Create direct_messages table
+    $pdo->exec("
+        CREATE TABLE IF NOT EXISTS direct_messages (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            sender_id INT NOT NULL,
+            receiver_id INT NOT NULL,
+            message TEXT NOT NULL,
+            sent_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (sender_id) REFERENCES users(id),
+            FOREIGN KEY (receiver_id) REFERENCES users(id)
+        ) ENGINE=InnoDB DEFAULT CHARSET=$charset COLLATE=utf8mb4_unicode_ci;
+    ");
+
+    echo "Table 'direct_messages' created successfully or already exists in '$db' database.\n";
 } catch (PDOException $e) {
     die("Database initialization failed: " . $e->getMessage());
 }

@@ -236,6 +236,13 @@ class Chat implements MessageComponentInterface {
     }
 
     public function onMessage(ConnectionInterface $from, $msg) {
+        $data = json_decode($msg, true);
+
+        if (isset($data['type']) && $data['type'] === 'dm') {
+            $this->handleDirectMessage($from, $data);
+            return;
+        }
+
         if (!isset($from->username) || !isset($from->roomId) || !isset($from->userId)) { // Added userId check
             $this->sendErrorMessage($from, "Connection not fully initialized. Message rejected.", 4007, "Connection not initialized");
             echo "Message from uninitialized connection (resourceId {$from->resourceId}). Ignoring.\n";
@@ -273,6 +280,35 @@ class Chat implements MessageComponentInterface {
         ];
 
         $this->broadcastToRoom($roomId, $messageData);
+    }
+
+    private function handleDirectMessage(ConnectionInterface $from, array $data) {
+        $senderId = $from->userId;
+        $receiverId = $data['receiver_id'];
+        $message = $data['message'];
+
+        // Store the direct message
+        try {
+            $stmt = $this->pdo->prepare("INSERT INTO direct_messages (sender_id, receiver_id, message) VALUES (?, ?, ?)");
+            $stmt->execute([$senderId, $receiverId, $message]);
+        } catch (PDOException $e) {
+            $this->sendErrorMessage($from, "Error sending message.");
+            echo "Error storing direct message: " . $e->getMessage() . "\n";
+            return;
+        }
+
+        // Find the recipient's connection and send the message
+        foreach ($this->clients as $client) {
+            if (isset($client->userId) && $client->userId == $receiverId) {
+                $client->send(json_encode([
+                    'type' => 'dm',
+                    'sender_id' => $senderId,
+                    'message' => $message,
+                    'sender_username' => $from->username
+                ]));
+                break;
+            }
+        }
     }
 
     public function onClose(ConnectionInterface $conn) {

@@ -256,17 +256,26 @@
 
         <!-- Room Dashboard -->
         <div id="room-dashboard">
-            <h2>Room Dashboard</h2>
+            <h2>Dashboard</h2>
             <div id="dashboard-message"></div>
-            <form id="create-room-form">
-                <h3>Create New Room</h3>
-                <input type="text" id="new-room-name" placeholder="Enter room name" required>
-                <button type="submit">Create Room</button>
-            </form>
-            <h3>Your Rooms</h3>
-            <ul id="room-list">
-                <!-- Room items will be populated by JS -->
-            </ul>
+            <div id="dashboard-content" style="display: flex; flex-direction: row; gap: 20px;">
+                <div id="room-section" style="flex: 1;">
+                    <h3>Rooms</h3>
+                    <form id="create-room-form">
+                        <input type="text" id="new-room-name" placeholder="Enter room name" required>
+                        <button type="submit">Create Room</button>
+                    </form>
+                    <ul id="room-list">
+                        <!-- Room items will be populated by JS -->
+                    </ul>
+                </div>
+                <div id="dm-section" style="flex: 1;">
+                    <h3>Direct Messages</h3>
+                    <ul id="user-list-dm">
+                        <!-- User list for DM will be populated by JS -->
+                    </ul>
+                </div>
+            </div>
         </div>
 
         <!-- Chat Application -->
@@ -338,6 +347,7 @@
             const createRoomForm = document.getElementById('create-room-form');
             const newRoomNameInput = document.getElementById('new-room-name');
             const roomListUL = document.getElementById('room-list');
+            const userListDM = document.getElementById('user-list-dm');
             const dashboardMessage = document.getElementById('dashboard-message');
 
             // UI Elements - Chat
@@ -550,6 +560,7 @@
                 mainHeaderBar.style.display = 'flex';
                 userInfoDisplay.textContent = `Logged in as: ${username}`;
                 await loadUserRooms();
+                await loadUsersForDM();
             }
 
             async function showChatUI(username, roomId, roomName, roomCreatorId) {
@@ -782,6 +793,34 @@
                 } catch (error) {
                     console.error('Error loading rooms:', error);
                     setDashboardMessage('Error loading rooms. Check connection.', true);
+                }
+            }
+
+            async function loadUsersForDM() {
+                try {
+                    const response = await fetch('list_users.php');
+                    const data = await response.json();
+                    userListDM.innerHTML = '';
+                    if (data.success && data.users) {
+                        data.users.forEach(user => {
+                            if (user.id !== currentUserId) {
+                                const li = document.createElement('li');
+                                li.textContent = user.username;
+                                li.dataset.userId = user.id;
+                                li.style.cursor = 'pointer';
+                                li.addEventListener('click', () => {
+                                    // Placeholder for starting a DM chat
+                                    console.log(`Starting DM with user ${user.id}`);
+                                });
+                                userListDM.appendChild(li);
+                            }
+                        });
+                    } else {
+                        userListDM.innerHTML = '<li>Could not load users.</li>';
+                    }
+                } catch (error) {
+                    console.error('Error loading users for DM:', error);
+                    userListDM.innerHTML = '<li>Error loading users.</li>';
                 }
             }
 
