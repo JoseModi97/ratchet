@@ -630,6 +630,11 @@
                     console.log(`Data received from server: ${event.data}`);
                     try {
                         const data = JSON.parse(event.data);
+                    if (data.type === 'dm') {
+                        const div = document.createElement('div');
+                        div.textContent = `${data.sender_username}: ${data.message}`;
+                        dmChatOutput.appendChild(div);
+                    } else {
                         // Expecting live messages to have: { type, sender, text, roomId }
                         // System messages from server (like join/leave if not handled by history) might be 'server_message'
                         addMessageToChat(data); // Let addMessageToChat handle different types
@@ -641,6 +646,7 @@
                             if (parseInt(currentUserId) === parseInt(currentRoomCreatorId)) {
                                 loadRoomMembers();
                                 loadInviteCandidates(currentRoomId); // Also refresh candidates
+                            }
                             }
                         }
                     } catch (error) {
@@ -816,11 +822,14 @@
                         data.users.forEach(user => {
                             if (user.id !== currentUserId) {
                                 const li = document.createElement('li');
-                                li.textContent = user.username;
-                                li.dataset.userId = user.id;
+                                li.innerHTML = `<a href="#" data-user-id="${user.id}" data-username="${user.username}">${user.username}</a>`;
                                 li.style.cursor = 'pointer';
-                                li.addEventListener('click', () => {
-                                    showDMChatUI(user.id, user.username);
+                                li.addEventListener('click', (e) => {
+                                    e.preventDefault();
+                                    const target = e.target;
+                                    const userId = target.getAttribute('data-user-id');
+                                    const username = target.getAttribute('data-username');
+                                    showDMChatUI(userId, username);
                                 });
                                 userListDM.appendChild(li);
                             }
@@ -837,11 +846,13 @@
             function showDMChatUI(userId, username) {
                 roomDashboard.style.display = 'none';
                 chatWrapper.style.display = 'none';
-                dmChatWrapper.style.display = 'block';
+                dmChatWrapper.style.display = 'flex';
                 dmChatWith.textContent = `Chat with ${username}`;
                 currentDMUserId = userId;
                 loadDMMessages(userId);
-                connectWebSocket(currentUsername, 0); // Use a dummy room ID for DM
+                if (!socket || socket.readyState !== WebSocket.OPEN) {
+                    connectWebSocket(currentUsername, 0); // Use a dummy room ID for DM
+                }
             }
 
             createRoomForm.addEventListener('submit', async function(e) {
