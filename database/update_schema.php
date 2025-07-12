@@ -46,6 +46,23 @@ try {
     ");
     echo "Table 'chat_messages' created successfully or already exists.\n";
 
+    // Create direct_messages table
+    $pdo->exec("
+        CREATE TABLE IF NOT EXISTS direct_messages (
+            id BIGINT AUTO_INCREMENT PRIMARY KEY,
+            sender_id INT NOT NULL,
+            receiver_id INT NOT NULL,
+            content TEXT NOT NULL,
+            sent_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            read_at TIMESTAMP NULL DEFAULT NULL,
+            FOREIGN KEY (sender_id) REFERENCES users(id) ON DELETE CASCADE,
+            FOREIGN KEY (receiver_id) REFERENCES users(id) ON DELETE CASCADE,
+            INDEX (sender_id, receiver_id, sent_at),
+            INDEX (receiver_id, sender_id, sent_at)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+    ");
+    echo "Table 'direct_messages' created successfully or already exists.\n";
+
     echo "Schema update complete.\n";
 
 } catch (PDOException $e) {
