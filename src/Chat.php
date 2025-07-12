@@ -153,14 +153,27 @@ class Chat implements MessageComponentInterface {
 
         // Check for duplicate connections from the same user to the same room
         if (isset($this->rooms[$roomId])) {
-            foreach ($this->rooms[$roomId] as $client) {
-                if (isset($client->userId) && $client->userId === $userId) {
-                    $this->sendErrorMessage($conn, "User '{$username}' is already connected to this room.", 4005, "Already connected to room");
-                    echo "Duplicate connection attempt by user '{$username}' (ID: {$userId}) to room {$roomId}. Closing new connection {$conn->resourceId}.\n";
-                    // Optionally, you could close the OLD connection instead, or allow multiple connections.
-                    // For now, rejecting the new one.
-                    // $client->close(4006, "Newer connection established for this user in this room.");
-                    return;
+            foreach ($this->rooms[$roomId] as $existingClient) {
+                // Check if the existing client has userId set and if it matches the new connection's userId
+                if (isset($existingClient->userId) && $existingClient->userId === $userId) {
+                    // Ensure we are not trying to close the connection that is currently being opened.
+                    // This can happen if the client somehow manages to send two open requests very quickly
+                    // and they both reach this point nearly simultaneously.
+                    // However, $conn is the new connection, $existingClient is from the $this->rooms[$roomId] list.
+                    // They should be different objects if it's genuinely a new connection vs an old one.
+                    if ($existingClient !== $conn) {
+                        echo "User '{$username}' (ID: {$userId}, New Conn: {$conn->resourceId}) attempting to connect to room {$roomId}, but an existing connection (Old Conn: {$existingClient->resourceId}) was found. Closing old connection.\n";
+                        // Send a message to the old client and close it
+                        $this->sendErrorMessage($existingClient, "You have been disconnected because you connected from a new session/tab.", 4006, "Superseded by new connection");
+                        // $existingClient->close(4006, "Superseded by new connection"); // sendErrorMessage already closes if code is provided if closeCode is not null
+
+                        // Detaching here might be redundant if sendErrorMessage -> close -> onClose handles it,
+                        // but explicitly detaching ensures the list is clean before proceeding with the new connection.
+                        // However, direct detachment can skip the onClose logic for the $existingClient if not careful.
+                        // The close initiated by sendErrorMessage should trigger onClose for $existingClient, which handles detachment.
+                        // So, we just break the loop and let the new connection proceed.
+                        break;
+                    }
                 }
             }
         }
